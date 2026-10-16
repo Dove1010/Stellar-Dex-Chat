@@ -1217,6 +1217,7 @@ Repo Avatar
 - **contract:** Add Soroban invariant tests for get_fee_withdrawal_nonce
 - **changelog:** Update changelog [skip ci]
 - **changelog:** Update changelog [skip ci]
+- **changelog:** Update changelog [skip ci]
 
 ### Deprecated
 
