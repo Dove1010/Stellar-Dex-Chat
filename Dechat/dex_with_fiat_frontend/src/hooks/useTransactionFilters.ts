@@ -52,6 +52,10 @@ export interface UseTransactionFiltersReturn {
   ) => FilterChipTone;
   /** Available keyboard shortcuts for filter management. */
   keyboardShortcuts: typeof KEYBOARD_SHORTCUTS;
+  /** True while an optimistic filter change has not yet been confirmed by the URL. */
+  isSyncingFilters: boolean;
+  /** Set when the last URL sync failed and the optimistic change was rolled back. */
+  filterSyncError: Error | null;
 }
 
 const DEBOUNCE_DELAY = 150; // ms
@@ -305,9 +309,14 @@ export function useTransactionFilters(
   const searchParamsRef = useRef(searchParams);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pendingFilterStateRef = useRef<FilterState | null>(null);
+  // True once the pending state has been pushed to the router (debounce flushed).
+  const pendingFlushedRef = useRef(false);
   const [optimisticFilterState, setOptimisticFilterState] = useState<FilterState | null>(
     null,
   );
+  const [filterSyncError, setFilterSyncError] = useState<Error | null>(null);
+  const searchString = searchParams?.toString() ?? '';
+  const lastSearchStringRef = useRef(searchString);
 
   // Keep ref in sync so debounce callbacks always read the latest searchParams
   useEffect(() => {
@@ -349,15 +358,28 @@ export function useTransactionFilters(
 
   const filterState = optimisticFilterState ?? urlFilterState;
 
+  const rollbackOptimisticState = useCallback(() => {
+    pendingFilterStateRef.current = null;
+    pendingFlushedRef.current = false;
+    setOptimisticFilterState(null);
+  }, []);
+
+  // Reconcile optimistic state with the URL: drop it once the URL confirms the
+  // change, or when a navigation we did not initiate (e.g. back/forward) lands
+  // after our push was sent — the URL is the source of truth.
   useEffect(() => {
-    if (
-      pendingFilterStateRef.current &&
-      areFilterStatesEqual(pendingFilterStateRef.current, urlFilterState)
-    ) {
-      pendingFilterStateRef.current = null;
-      setOptimisticFilterState(null);
+    const searchChanged = lastSearchStringRef.current !== searchString;
+    lastSearchStringRef.current = searchString;
+
+    const pending = pendingFilterStateRef.current;
+    if (!pending) return;
+
+    if (areFilterStatesEqual(pending, urlFilterState)) {
+      rollbackOptimisticState();
+    } else if (searchChanged && pendingFlushedRef.current) {
+      rollbackOptimisticState();
     }
-  }, [urlFilterState, optimisticFilterState]);
+  }, [searchString, urlFilterState, optimisticFilterState, rollbackOptimisticState]);
 
   // Compute filtered transactions
   const filteredTransactions = useMemo(() => {
@@ -395,19 +417,32 @@ export function useTransactionFilters(
         clearTimeout(debounceTimerRef.current);
       }
 
+      // Apply optimistically so the UI reflects the change before the URL does.
       pendingFilterStateRef.current = newFilterState;
+      pendingFlushedRef.current = false;
       setOptimisticFilterState(newFilterState);
+      setFilterSyncError(null);
 
       // Set new timer — reads searchParamsRef at flush time so it always
       // uses the latest params (including non-filter params like `tab`).
       debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
         const newParams = mergeFilterParams(searchParamsRef.current, newFilterState);
         const queryString = newParams.toString();
         const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
-        router.push(newUrl, { scroll: false });
+        pendingFlushedRef.current = true;
+        try {
+          router.push(newUrl, { scroll: false });
+        } catch (error) {
+          // Roll back to the last URL-confirmed filter state.
+          rollbackOptimisticState();
+          setFilterSyncError(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        }
       }, DEBOUNCE_DELAY);
     },
-    [router, pathname],
+    [router, pathname, rollbackOptimisticState],
   );
 
   // Toggle a filter value
@@ -566,5 +601,7 @@ export function useTransactionFilters(
     hasActiveFilters,
     getFilterChipTone,
     keyboardShortcuts: KEYBOARD_SHORTCUTS,
+    isSyncingFilters: optimisticFilterState !== null,
+    filterSyncError,
   };
 }
