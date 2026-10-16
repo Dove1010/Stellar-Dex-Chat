@@ -1965,9 +1965,11 @@ impl FiatBridge {
     ///   to prevent nonce overflow (though practically impossible at u64).
     /// - **Max Cap Guard**: Validates `limit <= max_cap` where `max_cap` defaults to `i128::MAX` but can be
     ///   configured to prevent unbounded limit values.
-    /// - **State Validation Order**: Nonce validation occurs before any state changes, ensuring failed
-    ///   nonce checks do not modify the token limit.
-    /// - **Zero Amount Guard**: Rejects `limit <= 0` via `ZeroAmount` error to prevent zero/negative limits.
+    /// - **Zero Amount Guard**: Rejects `limit <= 0` via `ZeroAmount` error to prevent zero/negative limits
+    ///   (Issue #739). A non-positive limit would make every deposit fail `amount > limit`.
+    /// - **Gate Order**: admin → circuit breaker → `limit > 0` → `limit <= max_cap` → token whitelist →
+    ///   nonce. Every input check runs before the nonce is consumed and before any state is written,
+    ///   so the error a caller sees is deterministic and a rejected call never modifies the token limit.
     ///
     /// # Arguments
     /// * `env` – The Soroban host environment.
@@ -1986,8 +1988,13 @@ impl FiatBridge {
     pub fn set_limit(env: Env, token: Address, limit: i128, nonce: u64) -> Result<(), Error> {
         let admin = Self::require_admin(&env)?;
 
-        // Validate and increment nonce for replay protection
-        Self::validate_and_increment_set_limit_nonce(&env, &admin, nonce)?;
+        // Block if circuit breaker is active
+        Self::require_circuit_breaker_clear(&env)?;
+
+        // Issue #739: a zero or negative limit is never a valid configuration
+        if limit <= 0 {
+            return Err(Error::ZeroAmount);
+        }
 
         // Check against configured max cap
         let max_cap: i128 = env
@@ -1998,13 +2005,16 @@ impl FiatBridge {
         if limit > max_cap {
             return Err(Error::ExceedsLimitMaxCap);
         }
-        // Block if circuit breaker is active
-        Self::require_circuit_breaker_clear(&env)?;
+
         let mut config: TokenConfig = env
             .storage()
             .persistent()
             .get(&DataKey::TokenRegistry(token.clone()))
             .ok_or(Error::TokenNotWhitelisted)?;
+
+        // Validate and increment nonce for replay protection
+        Self::validate_and_increment_set_limit_nonce(&env, &admin, nonce)?;
+
         config.limit = limit;
         env.storage()
             .persistent()
