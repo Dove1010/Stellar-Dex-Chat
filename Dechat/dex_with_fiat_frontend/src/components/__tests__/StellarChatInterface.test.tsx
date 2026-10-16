@@ -115,6 +115,12 @@ vi.mock('@/hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockUseOnlineStatus(),
 }));
 
+const mockAddToast = vi.fn();
+
+vi.mock('@/hooks/useToast', () => ({
+  useToast: () => ({ addToast: mockAddToast }),
+}));
+
 vi.mock('@/hooks/useMediaQuery', () => ({
   useMediaQuery: () => false,
 }));
@@ -219,5 +225,66 @@ describe('StellarChatInterface', () => {
     expect(hydrationWarnings).toHaveLength(0);
 
     consoleWarnSpy.mockRestore();
+  });
+
+  describe('network status toast', () => {
+    beforeEach(() => {
+      mockNotificationsCenterThrows = false;
+    });
+
+    const setOnline = (isOnline: boolean) =>
+      mockUseOnlineStatus.mockReturnValue({
+        isOnline,
+        wasOffline: false,
+        resetWasOffline: vi.fn(),
+      });
+
+    it('does not toast when mounting online', () => {
+      render(<StellarChatInterface />);
+
+      expect(mockAddToast).not.toHaveBeenCalled();
+    });
+
+    it('toasts a warning when mounting offline', () => {
+      setOnline(false);
+      render(<StellarChatInterface />);
+
+      expect(mockAddToast).toHaveBeenCalledTimes(1);
+      expect(mockAddToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'common.offline_detected',
+          variant: 'warning',
+        }),
+      );
+    });
+
+    it('toasts once when the connection drops and once when it returns', () => {
+      const { rerender } = render(<StellarChatInterface />);
+
+      setOnline(false);
+      rerender(<StellarChatInterface />);
+      rerender(<StellarChatInterface />);
+
+      expect(mockAddToast).toHaveBeenCalledTimes(1);
+      expect(mockAddToast).toHaveBeenLastCalledWith(
+        expect.objectContaining({ message: 'common.offline_detected', variant: 'warning' }),
+      );
+
+      setOnline(true);
+      rerender(<StellarChatInterface />);
+      rerender(<StellarChatInterface />);
+
+      expect(mockAddToast).toHaveBeenCalledTimes(2);
+      expect(mockAddToast).toHaveBeenLastCalledWith(
+        expect.objectContaining({ message: 'common.online', variant: 'success' }),
+      );
+    });
+
+    it('keeps the inline offline status alongside the toast', () => {
+      setOnline(false);
+      render(<StellarChatInterface />);
+
+      expect(screen.getByText('common.offline_detected')).toBeTruthy();
+    });
   });
 });

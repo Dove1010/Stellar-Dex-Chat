@@ -137,7 +137,8 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-400 hover:underline"
+            data-testid="message-link"
+            className={`underline underline-offset-2 hover:no-underline ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}
           >
             {children}
           </a>
@@ -218,7 +219,10 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
             >
               <div className="whitespace-pre-wrap break-words min-h-[20px] flex items-center">
                 {isPending ? (
-                  <div className="flex items-center space-x-2 text-gray-400">
+                  <div
+                    data-testid="message-loading"
+                    className={`flex items-center space-x-2 ${isUser ? 'text-white' : isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}
+                  >
                     <Loader2 className={`w-4 h-4 ${shouldReduceMotion ? '' : 'animate-spin'}`} />
                     <span className="text-sm italic">{t('common.loading')}</span>
                   </div>
@@ -238,7 +242,8 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
 
             {/* Timestamp with read receipts */}
             <div
-              className={`flex items-center mt-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} ${isUser ? 'justify-end' : 'justify-start'} group/timestamp`}
+              data-testid="message-timestamp"
+              className={`flex items-center mt-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} ${isUser ? 'justify-end' : 'justify-start'} group/timestamp`}
             >
               <span className="relative">
                 <Clock className="w-3 h-3 mr-1" />
@@ -258,10 +263,10 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
                 minute: '2-digit',
               })}</span>
               {isUser && message.metadata?.readAt && (
-                <CheckCheck className="w-3.5 h-3.5 ml-1 text-blue-400" aria-label="Read" />
+                <CheckCheck className={`w-3.5 h-3.5 ml-1 ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`} aria-label="Read" />
               )}
               {isUser && !message.metadata?.readAt && message.metadata?.deliveredAt && (
-                <Check className="w-3.5 h-3.5 ml-1 text-blue-400" aria-label="Delivered" />
+                <Check className={`w-3.5 h-3.5 ml-1 ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`} aria-label="Delivered" />
               )}
             </div>
 

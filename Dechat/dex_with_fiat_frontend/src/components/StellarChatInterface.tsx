@@ -4,6 +4,7 @@ import SkeletonChat from '@/components/ui/skeleton/SkeletonChat';
 import SkeletonSidebar from '@/components/ui/skeleton/SkeletonSidebar';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useToast } from '@/hooks/useToast';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   Wallet,
@@ -93,6 +94,10 @@ function StellarChatInterfaceContent() {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const { isOnline, wasOffline, resetWasOffline } = useOnlineStatus();
   const isMobile = useMediaQuery('(max-width: 639px)');
+  const { addToast } = useToast();
+  // Last connectivity state a network toast was raised for; `null` until the
+  // first render so an online mount stays silent.
+  const lastNetworkToastStateRef = useRef<boolean | null>(null);
 
   // ── Health badge state ──────────────────────────────────────────────────────
   const [healthStatus, setHealthStatus] = useState<HealthStatus>('checking');
@@ -178,6 +183,27 @@ function StellarChatInterfaceContent() {
       resetWasOffline();
     }
   }, [wasOffline, isOnline, resetWasOffline]);
+
+  // Network status toast: announce connectivity transitions. Starting offline
+  // counts as a transition so the user learns why requests are queued.
+  useEffect(() => {
+    const previous = lastNetworkToastStateRef.current;
+    lastNetworkToastStateRef.current = isOnline;
+
+    if (!isOnline && previous !== false) {
+      addToast({
+        message: t('common.offline_detected'),
+        variant: 'warning',
+        durationMs: 5000,
+      });
+    } else if (isOnline && previous === false) {
+      addToast({
+        message: t('common.online'),
+        variant: 'success',
+        durationMs: 3000,
+      });
+    }
+  }, [isOnline, addToast, t]);
 
   // Subscribe to queue updates
   useEffect(() => {
