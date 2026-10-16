@@ -153,6 +153,134 @@ describe('useTransactionFilters', () => {
     expect(result.current.filteredTransactions[0]?.status).toBe('completed');
   });
 
+  describe('optimistic updates (issue #734)', () => {
+    it('marks filters as syncing until the URL confirms the change', () => {
+      const { result, rerender } = renderHook(() =>
+        useTransactionFilters(transactions),
+      );
+
+      expect(result.current.isSyncingFilters).toBe(false);
+
+      act(() => {
+        result.current.toggleFilter('status', 'completed');
+      });
+
+      expect(result.current.isSyncingFilters).toBe(true);
+      expect(result.current.filterState.status).toEqual(['completed']);
+
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+      rerender();
+
+      expect(result.current.isSyncingFilters).toBe(false);
+      expect(result.current.filterState.status).toEqual(['completed']);
+      expect(result.current.filterSyncError).toBeNull();
+    });
+
+    it('rolls back to the confirmed state when the URL push fails', () => {
+      mockSearchParams = new URLSearchParams('status=failed');
+      mockPush.mockImplementationOnce(() => {
+        throw new Error('navigation blocked');
+      });
+
+      const { result } = renderHook(() => useTransactionFilters(transactions));
+
+      act(() => {
+        result.current.toggleFilter('status', 'completed');
+      });
+
+      // Optimistic: both statuses applied immediately.
+      expect(result.current.filterState.status).toEqual(['failed', 'completed']);
+      expect(result.current.filteredTransactions).toHaveLength(2);
+
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+
+      expect(result.current.filterState.status).toEqual(['failed']);
+      expect(result.current.filteredTransactions).toHaveLength(1);
+      expect(result.current.isSyncingFilters).toBe(false);
+      expect(result.current.filterSyncError?.message).toBe('navigation blocked');
+    });
+
+    it('clears a previous sync error on the next filter change', () => {
+      mockPush.mockImplementationOnce(() => {
+        throw new Error('navigation blocked');
+      });
+
+      const { result } = renderHook(() => useTransactionFilters(transactions));
+
+      act(() => {
+        result.current.toggleFilter('status', 'completed');
+      });
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+      expect(result.current.filterSyncError).not.toBeNull();
+
+      act(() => {
+        result.current.toggleFilter('asset', 'XLM');
+      });
+      expect(result.current.filterSyncError).toBeNull();
+    });
+
+    it('stacks rapid toggles on the pending state rather than the stale URL', () => {
+      const { result } = renderHook(() => useTransactionFilters(transactions));
+
+      act(() => {
+        result.current.toggleFilter('status', 'completed');
+      });
+      act(() => {
+        result.current.toggleFilter('status', 'failed');
+      });
+
+      expect(result.current.filterState.status).toEqual(['completed', 'failed']);
+      expect(result.current.filteredTransactions).toHaveLength(2);
+    });
+
+    it('defers to the URL when an external navigation lands after the push', () => {
+      // Push is sent, but the navigation is superseded (e.g. back button).
+      mockPush.mockImplementationOnce(() => {});
+
+      const { result, rerender } = renderHook(() =>
+        useTransactionFilters(transactions),
+      );
+
+      act(() => {
+        result.current.toggleFilter('status', 'completed');
+      });
+      act(() => {
+        vi.advanceTimersByTime(150);
+      });
+      expect(result.current.isSyncingFilters).toBe(true);
+
+      mockSearchParams = new URLSearchParams('tab=history&asset=USDC');
+      rerender();
+
+      expect(result.current.isSyncingFilters).toBe(false);
+      expect(result.current.filterState.status).toEqual([]);
+      expect(result.current.filterState.asset).toEqual(['USDC']);
+    });
+
+    it('does not discard optimistic state before the debounced push is sent', () => {
+      const { result, rerender } = renderHook(() =>
+        useTransactionFilters(transactions),
+      );
+
+      act(() => {
+        result.current.toggleFilter('status', 'completed');
+      });
+
+      // A non-filter param changes while the push is still debounced.
+      mockSearchParams = new URLSearchParams('tab=receipts');
+      rerender();
+
+      expect(result.current.filterState.status).toEqual(['completed']);
+      expect(result.current.isSyncingFilters).toBe(true);
+    });
+  });
+
   it('keeps keyboard shortcut metadata intact', () => {
     expect(KEYBOARD_SHORTCUTS.clearAll.key).toBe('x');
     expect(KEYBOARD_SHORTCUTS.cycleStatus.key).toBe('1');
