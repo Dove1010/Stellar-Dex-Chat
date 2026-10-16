@@ -7,6 +7,9 @@ import { useToast } from '@/hooks/useToast';
 import { offlineStatusToastSchema } from '@/lib/offlineStatusSchema';
 import { subscribeToQueuedMessageCount } from '@/lib/offlineMessageQueue';
 
+/** Gap left between the banner's bottom edge and a focused element scrolled clear of it. */
+export const BANNER_SCROLL_MARGIN_PX = 8;
+
 /**
  * Offline Status Banner Component
  * Shows when the user loses internet connection
@@ -22,6 +25,8 @@ export default function OfflineStatusBanner() {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const previousOnlineState = useRef<boolean>(true);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const hasPendingLine = optimisticPendingCount > 0;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -115,6 +120,43 @@ export default function OfflineStatusBanner() {
     };
   }, [isReconnecting, optimisticPendingCount]);
 
+  // Auto-scroll: the banner is fixed over the top of the page, so reserve its
+  // height as `scroll-padding-top` (keeps focus/anchor scrolling clear of it)
+  // and nudge the focused element out from underneath when it gets covered.
+  useEffect(() => {
+    const banner = bannerRef.current;
+    if (!showBanner || !banner || typeof document === 'undefined') return;
+
+    const root = document.documentElement;
+    const previousScrollPadding = root.style.scrollPaddingTop;
+    const bannerHeight = banner.getBoundingClientRect().height;
+    root.style.scrollPaddingTop = `${bannerHeight}px`;
+
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      !banner.contains(active)
+    ) {
+      const rect = active.getBoundingClientRect();
+      // Only elements that are on screen and under the banner; never yank the
+      // page back to something the user has already scrolled away from.
+      if (rect.bottom > 0 && rect.top < bannerHeight) {
+        const prefersReducedMotion =
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollBy({
+          top: rect.top - bannerHeight - BANNER_SCROLL_MARGIN_PX,
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        });
+      }
+    }
+
+    return () => {
+      root.style.scrollPaddingTop = previousScrollPadding;
+    };
+  }, [showBanner, isReconnecting, hasPendingLine]);
+
   if (isLoading && isOnline) {
     return (
       <div
@@ -134,6 +176,8 @@ export default function OfflineStatusBanner() {
 
   return (
     <div
+      ref={bannerRef}
+      data-testid="offline-status-banner"
       role="status"
       aria-live="polite"
       aria-atomic="true"

@@ -1,18 +1,65 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { z } from 'zod';
 import { useStellarWallet } from '@/contexts/StellarWalletContext';
 import { getAdmin } from '@/lib/stellarContract';
 import { signTransaction } from '@stellar/freighter-api';
 import { TransactionBuilder, BASE_FEE, Networks, Memo, Account } from '@stellar/stellar-sdk';
 import LandingPage from '@/components/LandingPage';
+import { ThemeContext } from '@/contexts/ThemeContext';
 
 /** Zod schema for validating a Stellar public key (56-char G-prefixed string). */
 export const stellarAddressSchema = z.string().length(56).startsWith('G');
 
 /** Inferred TypeScript type for a validated Stellar address. */
 export type StellarAddress = z.infer<typeof stellarAddressSchema>;
+
+export type AdminGuardColorScheme = 'light' | 'dark';
+
+/**
+ * Resolves the colour scheme for the guard's own full-screen states.
+ *
+ * The guard can render before `ThemeProvider` has applied the saved theme to
+ * `<html>`, or outside a provider entirely, so it cannot rely on the global
+ * `[data-theme]` selector alone. Priority: `data-theme` on `<html>` →
+ * ThemeContext (when mounted) → `prefers-color-scheme`.
+ */
+export function useAdminGuardColorScheme(): AdminGuardColorScheme {
+  const themeContext = useContext(ThemeContext);
+  const [dataTheme, setDataTheme] = useState<string | null>(null);
+  const [systemPrefersDark, setSystemPrefersDark] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    setSystemPrefersDark(mql.matches);
+
+    const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const root = document.documentElement;
+    setDataTheme(root.getAttribute('data-theme'));
+
+    const observer = new MutationObserver(() => {
+      setDataTheme(root.getAttribute('data-theme'));
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+
+  if (dataTheme === 'dark' || dataTheme === 'light') return dataTheme;
+  if (themeContext) return themeContext.isDarkMode ? 'dark' : 'light';
+  return systemPrefersDark ? 'dark' : 'light';
+}
 
 interface AdminGuardProps {
   children: React.ReactNode;
@@ -29,6 +76,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authenticating, setAuthenticating] = useState(false);
+  const colorScheme = useAdminGuardColorScheme();
 
   useEffect(() => {
     async function checkAdmin() {
@@ -141,7 +189,12 @@ export default function AdminGuard({ children }: AdminGuardProps) {
 
   if (loading) {
     return (
-      <div className="theme-app flex h-screen items-center justify-center">
+      <div
+        data-testid="admin-guard-loading"
+        data-theme={colorScheme}
+        style={{ colorScheme }}
+        className="theme-app flex h-screen items-center justify-center"
+      >
         <div
           className="h-8 w-8 animate-spin rounded-full border-4"
           style={{
@@ -158,7 +211,12 @@ export default function AdminGuard({ children }: AdminGuardProps) {
 
   if (error) {
     return (
-      <div className="theme-app flex h-screen flex-col items-center justify-center p-6 text-center">
+      <div
+        data-testid="admin-guard-error"
+        data-theme={colorScheme}
+        style={{ colorScheme }}
+        className="theme-app flex h-screen flex-col items-center justify-center p-6 text-center"
+      >
         <div className="mb-4" style={{ color: 'var(--color-danger)' }}>
           <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
