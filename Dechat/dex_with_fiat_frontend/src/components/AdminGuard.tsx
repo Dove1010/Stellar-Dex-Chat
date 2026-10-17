@@ -79,6 +79,8 @@ export default function AdminGuard({ children }: AdminGuardProps) {
   const colorScheme = useAdminGuardColorScheme();
 
   useEffect(() => {
+    let cancelled = false;
+
     async function checkAdmin() {
       if (!connection.address) {
         setIsAdmin(false);
@@ -123,6 +125,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
         }
         
         const { nonce } = await nonceResponse.json();
+        if (cancelled) return;
         
         // Create a minimal transaction with the nonce as a memo hash
         // We need to fetch the account sequence first
@@ -133,6 +136,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
           throw new Error('Failed to fetch account details');
         }
         const accountData = await accountResponse.json();
+        if (cancelled) return;
         
         const networkPassphrase = connection.networkPassphrase || Networks.TESTNET;
         const account = new Account(accountData.account_id, accountData.sequence);
@@ -152,6 +156,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
           networkPassphrase,
           address: connection.address,
         });
+        if (cancelled) return;
         
         if (signResult.error) {
           throw new Error(`Failed to sign: ${signResult.error}`);
@@ -168,12 +173,14 @@ export default function AdminGuard({ children }: AdminGuardProps) {
           }),
         });
         
+        if (cancelled) return;
+
         if (!authResponse.ok) {
           const errorData = await authResponse.json();
           throw new Error(errorData.error || 'Authentication failed');
         }
         
-        setIsAdmin(true);
+        if (!cancelled) setIsAdmin(true);
       } catch (err) {
         console.error('Failed to verify admin status:', err);
         setError(err instanceof Error ? err.message : 'Failed to verify admin status. Please try again.');

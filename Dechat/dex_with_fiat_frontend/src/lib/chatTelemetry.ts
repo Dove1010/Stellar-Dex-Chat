@@ -230,6 +230,18 @@ const MIN_CONTRAST_RATIO = 4.5;
 const FALLBACK_LIGHT_TEXT = '#FFFFFF';
 const FALLBACK_DARK_TEXT = '#111827';
 
+export function prefersDarkMode(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false;
+  }
+
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeHexColor(color: string): string | null {
   try {
     const trimmed = color.trim();
@@ -295,7 +307,7 @@ export function calculateContrastRatio(
 
 export function getAccessibleAvatarTextColor(
   backgroundColor: string,
-  preferredTextColor = FALLBACK_LIGHT_TEXT,
+  preferredTextColor = prefersDarkMode() ? FALLBACK_LIGHT_TEXT : FALLBACK_DARK_TEXT,
 ): string {
   try {
     const normalizedBackgroundColor = normalizeHexColor(backgroundColor);

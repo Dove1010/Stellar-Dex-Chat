@@ -102,6 +102,7 @@ function StellarChatInterfaceContent() {
   // ── Health badge state ──────────────────────────────────────────────────────
   const [healthStatus, setHealthStatus] = useState<HealthStatus>('checking');
   const healthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const healthRequestRef = useRef(0);
   // ───────────────────────────────────────────────────────────────────────────
 
   const [showReconnectedNotice, setShowReconnectedNotice] = useState(false);
@@ -230,11 +231,15 @@ function StellarChatInterfaceContent() {
 
   // ── Health endpoint polling ─────────────────────────────────────────────────
   const pollHealth = useCallback(async () => {
+    const requestId = ++healthRequestRef.current;
     try {
       const res = await fetch('/api/health');
+      if (requestId !== healthRequestRef.current) return;
       setHealthStatus(res.ok ? 'ok' : 'degraded');
     } catch {
-      setHealthStatus('degraded');
+      if (requestId === healthRequestRef.current) {
+        setHealthStatus('degraded');
+      }
     }
   }, []);
 
