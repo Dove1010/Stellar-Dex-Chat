@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const KEYBOARD_SHORTCUTS = {
   ADD_BENEFICIARY: 'Ctrl+B',
@@ -95,28 +95,31 @@ export function useBeneficiaries(options?: { fetchFromApi?: boolean; userId?: st
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
-  const [isMounted, setIsMounted] = useState(false);
+  const isMountedRef = useRef(false);
 
   useEffect(() => {
-    setIsMounted(true);
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   // Fetch from API with deduplication if enabled
   useEffect(() => {
-    if (!isMounted || !fetchFromApi || typeof window === 'undefined') return;
+    if (!fetchFromApi || typeof window === 'undefined') return;
 
     let cancelled = false;
 
     (async () => {
       try {
         const data = await fetchBeneficiariesWithDedup(userId);
-        if (!cancelled) {
+        if (!cancelled && isMountedRef.current) {
           setBeneficiaries(Array.isArray(data) ? data : []);
           setIsLoaded(true);
         }
       } catch (error) {
         console.error('Error loading beneficiaries:', error);
-        if (!cancelled) {
+        if (!cancelled && isMountedRef.current) {
           setIsLoaded(true);
         }
       }
@@ -125,11 +128,11 @@ export function useBeneficiaries(options?: { fetchFromApi?: boolean; userId?: st
     return () => {
       cancelled = true;
     };
-  }, [isMounted, fetchFromApi, userId]);
+  }, [fetchFromApi, userId]);
 
   // Load from localStorage if not fetching from API
   useEffect(() => {
-    if (!isMounted || fetchFromApi || typeof window === 'undefined') return;
+    if (fetchFromApi || typeof window === 'undefined') return;
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
@@ -140,7 +143,7 @@ export function useBeneficiaries(options?: { fetchFromApi?: boolean; userId?: st
       setBeneficiaries([]);
     }
     setIsLoaded(true);
-  }, [isMounted, fetchFromApi]);
+  }, [fetchFromApi]);
 
   useEffect(() => {
     if (!isLoaded || typeof window === 'undefined') return;

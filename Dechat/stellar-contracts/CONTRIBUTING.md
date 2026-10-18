@@ -7,7 +7,7 @@ Welcome! We appreciate your interest in contributing to the Stellar-Dex-Chat sma
 Before you begin, ensure you have the following installed:
 
 - **Rust**: The primary language for Soroban smart contracts. [Install Rust](https://www.rust-lang.org/tools/install)
-- **Soroban CLI**: Required for building and deploying contracts to the Stellar network. Follow the [Soroban documentation](https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup) to install it.
+- **Stellar CLI**: Required for building and deploying contracts to the Stellar network. Install the pinned version with `cargo install --locked stellar-cli --version 28.0.0`.
 - **Git**: For source control.
 
 ## Local Setup
@@ -18,14 +18,14 @@ Before you begin, ensure you have the following installed:
    cd Stellar-Dex-Chat/stellar-contracts
    ```
 
-2. Add the `wasm32-unknown-unknown` target for compiling contracts:
+2. Add the `wasm32v1-none` target for compiling contracts:
    ```bash
-   rustup target add wasm32-unknown-unknown
+   rustup target add wasm32v1-none
    ```
 
 3. Build the smart contracts to ensure your environment is set up correctly:
    ```bash
-   cargo build --target wasm32-unknown-unknown --release
+   stellar contract build
    ```
 
 For more details on the architecture of our fiat bridge logic, please refer to [FIAT_BRIDGE_README.md](FIAT_BRIDGE_README.md) (if available).
@@ -45,6 +45,27 @@ cargo fmt
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 Ensure that all tests pass before opening a Pull Request. We run automated checks in our CI/CD pipeline, and PRs with failing tests will not be merged.
+
+## Test Snapshots
+
+Running `cargo test` writes a JSON snapshot to `test_snapshots/` for every
+test (invariant, proptest, and regular unit test alike). These are debugging
+artifacts, not fixtures the suite reads back — the entire `test_snapshots/`
+directory is listed in `.gitignore` and none of it should be committed.
+
+If `git status` shows files under `test_snapshots/` as modified or new,
+they were tracked before the `.gitignore` rule was added and were never
+untracked. Remove them rather than committing the changes:
+
+```bash
+git rm --cached test_snapshots/<path-to-stray-file>
+```
+
+Do not `git add -f` anything under `test_snapshots/`. If you find a
+recurring need to keep a specific snapshot around for review (e.g. to pin
+down a regression), commit it under a different, explicitly-tracked path
+instead (for example alongside the test that generated it), not inside the
+gitignored `test_snapshots/` tree.
 
 ## Writing New Functions
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useId } from 'react';
 import { AuditEntry } from '@/types';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useToast } from '@/hooks/useToast';
@@ -9,6 +9,13 @@ import { withNetworkReadQueue, subscribeToQueue } from '@/lib/networkQueue';
 
 type SortKey = 'timestamp' | 'adminAddress' | 'actionType' | 'status';
 type SortOrder = 'asc' | 'desc';
+
+const SORT_KEY_LABELS: Record<SortKey, string> = {
+  timestamp: 'Timestamp',
+  adminAddress: 'Admin',
+  actionType: 'Action',
+  status: 'Status',
+};
 
 interface AuditTableProps {
   onRefresh?: () => void;
@@ -24,6 +31,7 @@ interface FilterState {
 }
 
 export default function AuditTable({}: AuditTableProps) {
+  const idPrefix = useId();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +50,16 @@ export default function AuditTable({}: AuditTableProps) {
   const [retryQueueCount, setRetryQueueCount] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
 
+  // Message mirrored into a visually-hidden ARIA live region so screen-reader
+  // users hear loading state, result counts, sort changes and errors that are
+  // otherwise only conveyed visually.
+  const [liveAnnouncement, setLiveAnnouncement] = useState('');
+
   const pageSize = 20;
   const fetchAbortRef = useRef<AbortController | null>(null);
+  // Guards the live region against announcing the empty initial state before
+  // the first fetch has even started.
+  const hasLoadedOnceRef = useRef(false);
 
   // Subscribe to the network queue so the UI can show how many
   // fetch requests are waiting to be retried when offline.
@@ -82,7 +98,10 @@ export default function AuditTable({}: AuditTableProps) {
 
       const data = await withNetworkReadQueue(
         async () => {
-          const response = await fetch(url, { signal });
+          const response = await fetch(url, {
+            signal,
+            credentials: 'include',
+          });
           if (!response.ok) {
             throw new Error(`API error: ${response.statusText}`);
           }
@@ -150,6 +169,37 @@ export default function AuditTable({}: AuditTableProps) {
     wasOnlineRef.current = isOnline;
   }, [isOnline, wasOffline, addToast, resetWasOffline, fetchAuditEntries]);
 
+  // Announce the outcome of each fetch (and the loading state that precedes
+  // it) to assistive technology. The sort state is folded into the settled
+  // message so a sort change produces one stable announcement rather than a
+  // transient one that a later data load would clobber.
+  useEffect(() => {
+    if (loading) {
+      hasLoadedOnceRef.current = true;
+      setLiveAnnouncement('Loading audit entries…');
+      return;
+    }
+    if (!hasLoadedOnceRef.current) return;
+    if (error) {
+      setLiveAnnouncement(`Error loading audit entries: ${error}`);
+      return;
+    }
+    const sortSuffix = ` Sorted by ${SORT_KEY_LABELS[sortKey]}, ${
+      sortOrder === 'asc' ? 'ascending' : 'descending'
+    }.`;
+    if (entries.length === 0) {
+      setLiveAnnouncement(
+        `No audit entries found. Try adjusting your filters.${sortSuffix}`,
+      );
+      return;
+    }
+    const start = currentPage * pageSize + 1;
+    const end = Math.min((currentPage + 1) * pageSize, totalEntries);
+    setLiveAnnouncement(
+      `Showing audit entries ${start} to ${end} of ${totalEntries}.${sortSuffix}`,
+    );
+  }, [loading, error, entries, currentPage, totalEntries, sortKey, sortOrder]);
+
   const handleExportCSV = useCallback(async () => {
     setIsExporting(true);
     try {
@@ -165,7 +215,9 @@ export default function AuditTable({}: AuditTableProps) {
       params.append('sortKey', sortKey);
       params.append('sortOrder', sortOrder);
 
-      const response = await fetch(`/api/admin-audit?${params.toString()}`);
+      const response = await fetch(`/api/admin-audit?${params.toString()}`, {
+        credentials: 'include',
+      });
       if (!response.ok) throw new Error(`Export failed: ${response.statusText}`);
       const data = await response.json() as { entries: AuditEntry[]; total: number };
 
@@ -241,12 +293,23 @@ export default function AuditTable({}: AuditTableProps) {
   // NOT reset the page — the user may intentionally be reading page 3 and want
   // to flip the sort direction without losing their position.
   const handleSortChange = (key: SortKey) => {
+    const nextOrder: SortOrder =
+      key === sortKey ? (sortOrder === 'asc' ? 'desc' : 'asc') : 'asc';
+
     if (key === sortKey) {
-      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      setSortOrder(nextOrder);
     } else {
       setSortKey(key);
-      setSortOrder('asc');
+      setSortOrder(nextOrder);
     }
+
+    // Immediate feedback; the post-fetch effect then settles on a message
+    // that also carries the row range for the new ordering.
+    setLiveAnnouncement(
+      `Sorting by ${SORT_KEY_LABELS[key]}, ${
+        nextOrder === 'asc' ? 'ascending' : 'descending'
+      }…`,
+    );
   };
 
   const SortIndicator = ({ column }: { column: SortKey }) => {
@@ -334,6 +397,18 @@ export default function AuditTable({}: AuditTableProps) {
 
   return (
     <div className="w-full">
+      {/* Visually-hidden live region for screen-reader announcements. Kept
+          role-free so it never collides with the retry-queue banner's
+          role="status". */}
+      <div
+        data-testid="audit-table-live-region"
+        className="sr-only"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {liveAnnouncement}
+      </div>
+
       {/* Offline retry queue banner */}
       {retryQueueCount > 0 && (
         <div
@@ -356,10 +431,11 @@ export default function AuditTable({}: AuditTableProps) {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor={`${idPrefix}-action`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Action Type
             </label>
             <select
+              id={`${idPrefix}-action`}
               value={filters.actionType}
               onChange={(e) =>
                 handleFilterChange('actionType', e.target.value)
@@ -376,10 +452,11 @@ export default function AuditTable({}: AuditTableProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor={`${idPrefix}-status`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Status
             </label>
             <select
+              id={`${idPrefix}-status`}
               value={filters.status}
               onChange={(e) => handleFilterChange('status', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -392,10 +469,11 @@ export default function AuditTable({}: AuditTableProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor={`${idPrefix}-admin`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Admin Address
             </label>
             <input
+              id={`${idPrefix}-admin`}
               type="text"
               value={filters.adminAddress}
               onChange={(e) =>
@@ -407,10 +485,11 @@ export default function AuditTable({}: AuditTableProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor={`${idPrefix}-tx`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Transaction Hash
             </label>
             <input
+              id={`${idPrefix}-tx`}
               type="text"
               value={filters.txHash}
               onChange={(e) => handleFilterChange('txHash', e.target.value)}
@@ -420,10 +499,11 @@ export default function AuditTable({}: AuditTableProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Start Date
+            <label htmlFor={`${idPrefix}-start`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Start Date (from)
             </label>
             <input
+              id={`${idPrefix}-start`}
               type="date"
               value={filters.startDate}
               onChange={(e) =>
@@ -434,10 +514,11 @@ export default function AuditTable({}: AuditTableProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              End Date
+            <label htmlFor={`${idPrefix}-end`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              End Date (to)
             </label>
             <input
+              id={`${idPrefix}-end`}
               type="date"
               value={filters.endDate}
               onChange={(e) => handleFilterChange('endDate', e.target.value)}
@@ -494,7 +575,7 @@ export default function AuditTable({}: AuditTableProps) {
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="animate-pulse">
+                <tr key={i} className="animate-pulse motion-reduce:animate-none">
                   <td className="px-6 py-4"><Skeleton className="h-4 w-36" /></td>
                   <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
                   <td className="px-6 py-4"><Skeleton className="h-4 w-20" /></td>

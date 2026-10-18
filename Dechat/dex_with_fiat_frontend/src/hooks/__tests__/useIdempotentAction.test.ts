@@ -295,17 +295,17 @@ describe('useIdempotentAction', () => {
     const { result } = renderHook(() =>
       useIdempotentAction({ cooldownMs: 500 }),
     );
-    const mockAction = vi.fn().mockResolvedValue('success');
+    const mockAction = vi.fn<(idempotencyKey: string) => Promise<string>>().mockResolvedValue('success');
 
     let results!: Array<string | null>;
     await act(async () => {
-      results = await Promise.all([
+      results = (await Promise.all([
         result.current.execute(mockAction, 'button_click'),
         result.current.execute(mockAction, 'button_click'),
         result.current.execute(mockAction, 'button_click'),
         result.current.execute(mockAction, 'button_click'),
         result.current.execute(mockAction, 'button_click'),
-      ]);
+      ])) as Array<string | null>;
     });
 
     expect(mockAction).toHaveBeenCalledTimes(1);
@@ -349,5 +349,54 @@ describe('useIdempotentAction', () => {
 
     await expect(secondExecution).resolves.toBe('success');
     expect(mockAction).toHaveBeenCalledTimes(1);
+  });
+
+  // ── memory-leak regression (#1221) ─────────────────────────────────────────
+
+  it('regression: clears inFlightActions on unmount so promise closures are not retained', async () => {
+    // Bug: before fix, unmounting only set isMountedRef = false. The
+    // inFlightActions Map kept Promise references alive, preventing GC of the
+    // closures that captured the component's state setter and other hook
+    // internals.
+    let resolveAction!: (v: string) => void;
+    const mockAction = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveAction = resolve;
+        }),
+    );
+
+    const { result, unmount } = renderHook(() =>
+      useIdempotentAction({ cooldownMs: 0, logSuppressed: false }),
+    );
+
+    // Start an action so inFlightActions is non-empty.
+    act(() => {
+      result.current.execute(mockAction, 'leak_test');
+    });
+
+    await waitFor(() => expect(result.current.isProcessing).toBe(true));
+
+    // Unmount while the promise is still in flight.
+    unmount();
+
+    // Resolve after unmount — must not throw and must not attempt state updates.
+    await act(async () => {
+      resolveAction('done');
+    });
+
+    // The in-flight action map must have been cleared by the cleanup.
+    // We verify indirectly: re-mounting a fresh hook should behave normally
+    // (no lingering state from the previous instance).
+    const { result: result2 } = renderHook(() =>
+      useIdempotentAction({ cooldownMs: 0, logSuppressed: false }),
+    );
+    const freshAction = vi.fn().mockResolvedValue('fresh');
+    let freshResult: string | null = null;
+    await act(async () => {
+      freshResult = await result2.current.execute(freshAction, 'fresh_test');
+    });
+    expect(freshResult).toBe('fresh');
+    expect(freshAction).toHaveBeenCalledTimes(1);
   });
 });

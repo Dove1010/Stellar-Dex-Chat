@@ -57,16 +57,29 @@ export function useFeatureFlag(flag: FeatureFlag, scrollTargetId?: string) {
       return;
     }
 
-    const newEnabled = getFeatureFlag(flag);
-    setIsEnabled(newEnabled);
-    trackFeatureFlag(flag, newEnabled);
+    function evaluate() {
+      const newEnabled = getFeatureFlag(flag);
+      setIsEnabled(newEnabled);
+      trackFeatureFlag(flag, newEnabled);
 
-    // Auto-scroll behavior: if flag becomes enabled and scrollTargetId is provided, scroll to it
-    if (newEnabled && scrollTargetId && typeof window !== 'undefined') {
-      const element = document.getElementById(scrollTargetId);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Auto-scroll behavior: if flag becomes enabled and scrollTargetId is provided, scroll to it
+      if (newEnabled && scrollTargetId && typeof window !== 'undefined') {
+        const element = document.getElementById(scrollTargetId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       }
+    }
+
+    evaluate();
+
+    // Re-evaluate when another tab or a dev-tools script modifies localStorage so
+    // that flag overrides applied at runtime are picked up without a page reload.
+    // The listener MUST be removed on cleanup — failing to do so leaks it on every
+    // re-render that changes `flag` or `scrollTargetId` (#1220).
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', evaluate);
+      return () => window.removeEventListener('storage', evaluate);
     }
   }, [flag, scrollTargetId]);
 
@@ -83,4 +96,46 @@ export function featureFlagSectionDividerBorderClass(
   isDarkMode: boolean,
 ): string {
   return isDarkMode ? 'border-gray-700' : 'border-gray-200';
+}
+
+/**
+ * Hook to copy text to clipboard with user feedback.
+ * Provides a simple way to implement clipboard copy buttons with automatic
+ * cleanup of the success state after a short delay.
+ *
+ * @param successDuration - How long (in ms) to show the "copied" state. Defaults to 2000ms.
+ * @returns Object containing:
+ *   - copyToClipboard: Function to copy text to clipboard
+ *   - isCopied: Boolean indicating if text was recently copied
+ *
+ * @example
+ * ```tsx
+ * const { copyToClipboard, isCopied } = useClipboardCopy();
+ * 
+ * <button onClick={() => copyToClipboard('text to copy')}>
+ *   {isCopied ? 'Copied!' : 'Copy'}
+ * </button>
+ * ```
+ */
+export function useClipboardCopy(successDuration: number = 2000) {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const copyToClipboard = async (text: string) => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      await navigator.clipboard.writeText(text);
+      setIsCopied(true);
+      
+      // Reset the "copied" state after the specified duration
+      setTimeout(() => {
+        setIsCopied(false);
+      }, successDuration);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      // Optionally, you could show an error state here
+    }
+  };
+
+  return { copyToClipboard, isCopied };
 }

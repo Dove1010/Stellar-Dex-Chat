@@ -27,6 +27,54 @@ export interface AuditLogFilter {
 const AUDIT_LOG_STORAGE_KEY = 'audit_log_entries';
 const MAX_LOG_ENTRIES = 10000; // Prevent unbounded growth
 
+export interface RetryOptions {
+  retries?: number;
+  minDelayMs?: number;
+  maxDelayMs?: number;
+  factor?: number;
+}
+
+const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
+  retries: 3,
+  minDelayMs: 100,
+  maxDelayMs: 2_000,
+  factor: 2,
+};
+
+function auditDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function retryWithBackoff<T>(
+  operation: () => Promise<T>,
+  options: RetryOptions = {},
+): Promise<T> {
+  const { retries, minDelayMs, maxDelayMs, factor } = {
+    ...DEFAULT_RETRY_OPTIONS,
+    ...options,
+  };
+
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt <= retries) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries) break;
+      const delayMs = Math.min(
+        minDelayMs * Math.pow(factor, attempt),
+        maxDelayMs,
+      );
+      await auditDelay(delayMs);
+      attempt += 1;
+    }
+  }
+
+  throw lastError;
+}
+
 class AuditLogService {
   /**
    * Record an admin action in the append-only log
@@ -161,7 +209,14 @@ class AuditLogService {
     }
 
     entries.push(entry);
-    window.localStorage.setItem(AUDIT_LOG_STORAGE_KEY, JSON.stringify(entries));
+    retryWithBackoff(
+      async () => {
+        window.localStorage.setItem(AUDIT_LOG_STORAGE_KEY, JSON.stringify(entries));
+      },
+      { retries: 3, minDelayMs: 100, maxDelayMs: 1_000, factor: 2 },
+    ).catch(() => {
+      console.warn('Failed to persist audit log after retrying');
+    });
   }
 
   private static getAllEntries(): AuditEntry[] {

@@ -28,11 +28,13 @@ vi.mock('@/components/AdminGuard', () => ({
 }));
 
 const auditTableMock = vi.hoisted(() =>
-  vi.fn(() => <div data-testid="audit-table">Audit Table</div>),
+  vi.fn<(...args: unknown[]) => React.ReactElement>(() => (
+    <div data-testid="audit-table">Audit Table</div>
+  )),
 );
 
 vi.mock('@/components/AuditTable', () => ({
-  default: (...args: unknown[]) => auditTableMock(...args),
+  default: (props: { onRefresh?: () => void }) => auditTableMock(props),
 }));
 
 vi.mock('next/link', () => ({

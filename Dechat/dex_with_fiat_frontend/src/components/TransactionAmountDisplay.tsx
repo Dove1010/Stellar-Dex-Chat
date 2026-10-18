@@ -5,6 +5,7 @@ import { useCurrencyConversion } from '@/hooks/useCurrencyConversion';
 import { transactionAmountSchema, type TransactionAmountProps } from '@/lib/transactionSchema';
 import { motion } from 'framer-motion';
 import { useUserPreferences } from '@/contexts/UserPreferencesContext';
+import SkeletonTransactionAmount from '@/components/ui/skeleton/SkeletonTransactionAmount';
 
 /**
  * Component to display transaction amounts with live currency conversion.
@@ -112,6 +113,11 @@ export function TransactionAmountDisplay(props: TransactionAmountProps) {
   }
 
   const { fiatAmount: storedFiatAmount, fiatCurrency: storedFiatCurrency } = result.data;
+
+  // Show skeleton when loading with no fallback text
+  if (isLoading && !renderedText) {
+    return <SkeletonTransactionAmount />;
+  }
 
   return (
     <motion.div

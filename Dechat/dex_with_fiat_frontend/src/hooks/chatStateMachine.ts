@@ -150,6 +150,7 @@ export function createChatStateMachine(): StateMachine<ChatState, ChatEvent, Cha
             context.hasUserCancelled = false;
             context.pendingTransactionData = null;
             context.needsClarification = false;
+            context.clarificationQuestion = null;
             context.errorMessage = null;
           },
         },
@@ -165,6 +166,7 @@ export function createChatStateMachine(): StateMachine<ChatState, ChatEvent, Cha
             context.hasUserCancelled = false;
             context.pendingTransactionData = null;
             context.needsClarification = false;
+            context.clarificationQuestion = null;
             context.errorMessage = null;
           },
         },

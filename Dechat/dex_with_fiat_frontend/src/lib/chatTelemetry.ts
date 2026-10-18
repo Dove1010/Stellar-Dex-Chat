@@ -13,7 +13,10 @@ export type ChatEventName =
   | 'bridge_open'
   | 'tx_confirm'
   | 'fiat_payout_step'
-  | 'avatar_color_check';
+  | 'avatar_color_check'
+  | 'payment_status'
+  | 'network_status'
+  | 'split_view';
 
 export interface ChatEvent<P extends object = Record<string, unknown>> {
   /** Normalized event name. */
@@ -78,6 +81,24 @@ export interface FiatPayoutStepPayload {
 export interface AvatarColorTelemetryPayload {
   avatarBackgroundColor: string;
   avatarTextColor?: string;
+}
+
+export interface PaymentStatusTelemetryPayload {
+  status: 'success' | 'failed' | 'reversed' | 'pending' | 'cancelled';
+  reference: string;
+  hasAmount: boolean;
+  hasFailureReason: boolean;
+}
+
+export interface NetworkStatusTelemetryPayload {
+  status: 'online' | 'offline';
+  source: 'initial' | 'browser-event' | 'connectivity-check';
+}
+
+export interface SplitViewTelemetryPayload {
+  action: 'open' | 'close' | 'set_left_session' | 'set_right_session' | 'swap_sessions' | 'select_message';
+  leftSessionId?: string | null;
+  rightSessionId?: string | null;
 }
 
 export interface AccessibleAvatarColorTelemetryPayload
@@ -209,6 +230,18 @@ const MIN_CONTRAST_RATIO = 4.5;
 const FALLBACK_LIGHT_TEXT = '#FFFFFF';
 const FALLBACK_DARK_TEXT = '#111827';
 
+export function prefersDarkMode(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false;
+  }
+
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeHexColor(color: string): string | null {
   try {
     const trimmed = color.trim();
@@ -274,7 +307,7 @@ export function calculateContrastRatio(
 
 export function getAccessibleAvatarTextColor(
   backgroundColor: string,
-  preferredTextColor = FALLBACK_LIGHT_TEXT,
+  preferredTextColor = prefersDarkMode() ? FALLBACK_LIGHT_TEXT : FALLBACK_DARK_TEXT,
 ): string {
   try {
     const normalizedBackgroundColor = normalizeHexColor(backgroundColor);
@@ -390,6 +423,8 @@ function emit<P extends object>(
   payload: P,
 ): void {
   try {
+    // Early-exit on the synchronous path to avoid building the event object
+    // when consent is clearly absent at call time.
     if (!getTelemetryConsent()) return;
 
     const normalizedPayload =
@@ -404,10 +439,13 @@ function emit<P extends object>(
       payload: normalizedPayload as Record<string, unknown>,
     };
 
-    // Fix rendering overflow: defer event dispatch to prevent blocking renders
+    // Fix rendering overflow: defer event dispatch to prevent blocking renders.
+    // #1226: Re-check consent inside the rAF callback to close the stale-closure
+    // window — consent may have been revoked between emit() and the next frame.
     if (typeof window !== 'undefined') {
       requestAnimationFrame(() => {
         try {
+          if (!getTelemetryConsent()) return;
           window.dispatchEvent(
             new CustomEvent('chat:telemetry', { detail: event }),
           );
@@ -450,6 +488,14 @@ export const chatTelemetry = {
     emit('fiat_payout_step', payload);
   },
 
+  paymentStatus(payload: PaymentStatusTelemetryPayload): void {
+    emit('payment_status', payload);
+  },
+
+  networkStatus(payload: NetworkStatusTelemetryPayload): void {
+    emit('network_status', payload);
+  },
+
   /**
    * Emit an `avatar_color_check` event that records whether the avatar
    * foreground/background colour pair meets WCAG AA contrast (4.5:1).
@@ -463,5 +509,9 @@ export const chatTelemetry = {
    */
   avatarColorCheck(payload: AvatarColorTelemetryPayload): void {
     emit('avatar_color_check', payload);
+  },
+
+  splitView(payload: SplitViewTelemetryPayload): void {
+    emit('split_view', payload);
   },
 };
