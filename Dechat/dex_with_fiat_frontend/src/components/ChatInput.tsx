@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Send, Loader2, AlertTriangle, Smile } from 'lucide-react';
+import { Send, Loader2, AlertTriangle, Smile, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '@/contexts/TranslationContext';
 import { useStellarWallet } from '@/contexts/StellarWalletContext';
@@ -71,6 +71,7 @@ export default function ChatInput({
   const submitShortcutLabel = isApplePlatform ? 'Cmd+Enter' : 'Ctrl+Enter';
   const submitShortcutKeys = isApplePlatform ? 'Meta+Enter' : 'Control+Enter';
   const [message, setMessage] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showPalette, setShowPalette] = useState(false);
@@ -132,6 +133,17 @@ export default function ChatInput({
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
   const isSubmitDisabled = !message.trim() || isLoading || isSubmitting;
 
+  const copyMessage = async () => {
+    const value = message.trim();
+    if (!value || typeof navigator === 'undefined' || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setIsCopied(true);
+      window.setTimeout(() => setIsCopied(false), 1200);
+    } catch {
+      setIsCopied(false);
+    }
+  };
   const submitMessage = () => {
     if (!connection.isConnected) {
       setWalletWarning(true);
@@ -479,6 +491,16 @@ export default function ChatInput({
           />
         </div>
 
+        <button
+          type="button"
+          onClick={copyMessage}
+          disabled={!message.trim()}
+          title="Copy message"
+          aria-label="Copy message"
+          className="flex items-center justify-center text-gray-400 hover:text-gray-600 disabled:opacity-40 rounded-lg transition-colors h-10 w-10"
+        >
+          {isCopied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+        </button>
         <button
           type="button"
           onClick={() => setShowEmojiPicker((v) => !v)}
