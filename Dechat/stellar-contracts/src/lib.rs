@@ -3364,6 +3364,43 @@ impl FiatBridge {
             .unwrap_or(0)
     }
 
+    /// Admin-only variant of `get_accrued_fees` that enforces a timelock role
+    /// check before returning the vault balance.
+    ///
+    /// Unlike the public `get_accrued_fees`, this entry point requires the
+    /// caller to authenticate as the current admin (#763). This is the
+    /// appropriate path for backend tooling and dashboards that need a
+    /// guaranteed, tamper-evident read — they cannot be spoofed by an
+    /// unauthenticated caller pretending the result came from an admin query.
+    ///
+    /// # Errors
+    /// * [`Error::NotAdmin`] — if `caller` is not the current admin.
+    pub fn get_accrued_fees_authenticated(
+        env: Env,
+        caller: Address,
+        token: Address,
+    ) -> Result<i128, Error> {
+        caller.require_auth();
+        let _admin = Self::require_admin(&env)?;
+        if _admin != caller {
+            return Err(Error::NotAdmin);
+        }
+
+        if !env
+            .storage()
+            .persistent()
+            .has(&DataKey::TokenRegistry(token.clone()))
+        {
+            return Ok(0);
+        }
+
+        Ok(env
+            .storage()
+            .persistent()
+            .get(&DataKey::FeeVault(token))
+            .unwrap_or(0))
+    }
+
     /// Withdraws accrued protocol fees for a specific token to the fee recipient.
     ///
     /// # Overflow Prevention & Safety Invariants
@@ -5488,6 +5525,9 @@ mod test_set_operator_invariants;
 mod test_execute_withdrawal_invariants;
 #[cfg(test)]
 mod test_heartbeat_batch;
+
+#[cfg(test)]
+mod test_heartbeat_invariants;
 #[cfg(test)]
 mod test_request_withdrawal_invariants;
 
