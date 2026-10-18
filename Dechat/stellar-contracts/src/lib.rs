@@ -17,20 +17,15 @@ const WINDOW_LEDGERS: u32 = 17_280; // ~24 hours
 const CIRCUIT_BREAKER_RESET_LEDGERS: u32 = 34_560; // ~48 hours (2 × WINDOW_LEDGERS)
 const WITHDRAWAL_EXPIRY_WINDOW_LEDGERS: u32 = 17_280; // ~24 hours — reserved for future withdrawal expiry feature
 const MIN_TIMELOCK_DELAY: u32 = 34_560; // 48 hours
-/// Default inactivity threshold for operators in ledger units.
+/// Number of ledgers an operator may go without a heartbeat before being
+/// eligible for pruning by `prune_inactive_operators`.
 ///
-/// Operators must send a heartbeat within this window to remain active.
-/// If an operator fails to heartbeat within this threshold, they may be
-/// automatically removed from the operator list to ensure operational security.
-///
-/// Value: 1,555,200 ledgers ≈ 3 months (assuming ~5 second ledger close time)
-///
-/// # Security Implications
-/// - Prevents stale operators from maintaining control
-/// - Ensures active participation from authorized operators
-/// - Allows automatic recovery from compromised operator keys
-/// - Threshold should be balanced between security and operational flexibility
-const DEFAULT_INACTIVITY_THRESHOLD: u32 = 1_555_200; // ~3 months
+/// Stellar closes roughly 1 ledger every ~5–6 seconds (≈17 280 ledgers/day).
+/// At that rate 1 555 200 ledgers ≈ 90 days (3 months).  The value is stored
+/// per-deployment in `DataKey::InactivityThreshold` so it can be changed via
+/// governance; this constant is the on-chain default used when no override has
+/// been written.
+const DEFAULT_INACTIVITY_THRESHOLD: u32 = 1_555_200; // ~3 months (≈17 280 ledgers/day)
 const MIN_UPGRADE_DELAY: u32 = 1_000;
 pub const EVENT_VERSION: u32 = 1;
 pub const ESCROW_STORAGE_VERSION: u32 = 1;
