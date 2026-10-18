@@ -80,6 +80,8 @@ export type BridgeStats = {
   error: string | null;
   fetchCount: number;
   lastFetchedAt: Date | null;
+  /** True when the OS/browser prefers a dark colour scheme. SSR-safe: returns false until hydration. */
+  prefersDark: boolean;
   refetchStats: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -121,6 +123,16 @@ function dispatchTelemetry(
   }
 }
 
+/** SSR-safe helper: reads the current dark-mode preference without throwing. */
+function getSystemPrefersDark(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    return false;
+  }
+}
+
 export default function useBridgeStats(): BridgeStats {
   const [balance, setBalance] = useState<bigint | null>(null);
   const [limit, setLimit] = useState<bigint | null>(null);
@@ -129,6 +141,8 @@ export default function useBridgeStats(): BridgeStats {
   const [error, setError] = useState<string | null>(null);
   const [fetchCount, setFetchCount] = useState(0);
   const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
+  // Initialise to false (SSR-safe); updated to real value after first paint.
+  const [prefersDark, setPrefersDark] = useState(false);
   // A client component may be rendered on the server before it is hydrated.
   // Keep async updates disabled until React has committed the client instance;
   // this makes the server snapshot and the first client render deterministic.
@@ -227,6 +241,21 @@ export default function useBridgeStats(): BridgeStats {
     return () => clearInterval(interval);
   }, [runFetch]);
 
+  // Dark-mode fallback: sync with OS preference after hydration and track changes.
+  useEffect(() => {
+    setPrefersDark(getSystemPrefersDark());
+    if (typeof window === 'undefined') return;
+    let mql: MediaQueryList | null = null;
+    try {
+      mql = window.matchMedia('(prefers-color-scheme: dark)');
+    } catch {
+      return;
+    }
+    const handler = (e: MediaQueryListEvent) => setPrefersDark(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql?.removeEventListener('change', handler);
+  }, []);
+
   return {
     balance,
     limit,
@@ -235,6 +264,7 @@ export default function useBridgeStats(): BridgeStats {
     error,
     fetchCount,
     lastFetchedAt,
+    prefersDark,
     refetchStats,
     refresh,
   };
