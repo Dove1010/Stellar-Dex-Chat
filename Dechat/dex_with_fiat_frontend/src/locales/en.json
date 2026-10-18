@@ -35,7 +35,11 @@
       "convert": "Convert 100 USDC to USD"
     },
     "error_message": "Message failed to send. Please check your connection.",
-    "cancelled_message": "Request cancelled by user."
+    "cancelled_message": "Request cancelled by user.",
+    "resending": "Resending…",
+    "retry_countdown": "Retrying automatically in {seconds}s (attempt {attempt} of {max})",
+    "retry_exhausted": "Automatic retries exhausted after {max} attempts.",
+    "retry_message": "Resend message: {content}"
   },
   "header": {
     "title": "DexFiat · Stellar",
@@ -59,6 +63,9 @@
     "amount": "Amount",
     "status": "Status",
     "date": "Date"
+  },
+  "history": {
+    "yesterday": "Yesterday"
   },
   "errors": {
     "101": "The contract has not been initialized.",

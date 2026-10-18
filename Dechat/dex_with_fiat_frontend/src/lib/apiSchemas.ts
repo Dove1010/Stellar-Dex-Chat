@@ -1,21 +1,43 @@
 import { z } from 'zod';
 
+// Nigerian NUBAN account numbers are always exactly 10 digits; Paystack bank
+// codes are 3-6 digits. Anchoring both to a strict digit pattern (rather than
+// just `min(1)`) also rules out injecting extra query parameters through
+// these fields into the Paystack request URL.
+const nubanAccountNumber = z
+  .string()
+  .regex(/^\d{10}$/, 'Account number must be exactly 10 digits');
+const paystackBankCode = z
+  .string()
+  .regex(/^\d{3,6}$/, 'Bank code must be 3-6 digits');
+
 // Schema for create-recipient endpoint
 export const createRecipientSchema = z.object({
-  type: z.string().min(1, 'Type is required'),
-  name: z.string().min(1, 'Name is required'),
-  account_number: z.string().min(1, 'Account number is required'),
-  bank_code: z.string().min(1, 'Bank code is required'),
-  currency: z.string().min(1, 'Currency is required'),
+  type: z.string().min(1, 'Type is required').max(50, 'Type is too long'),
+  name: z.string().min(1, 'Name is required').max(100, 'Name is too long'),
+  account_number: nubanAccountNumber,
+  bank_code: paystackBankCode,
+  currency: z.enum(['NGN']),
 });
 
 export type CreateRecipientInput = z.infer<typeof createRecipientSchema>;
 
 // Schema for initiate-transfer endpoint
+export const MAX_TRANSFER_AMOUNT_NGN = 10_000_000;
+
 export const initiateTransferSchema = z.object({
   source: z.string().min(1, 'Source is required'),
   reason: z.string().optional(),
-  amount: z.number().positive('Amount must be positive'),
+  amount: z
+    .number()
+    .positive('Amount must be positive')
+    .max(MAX_TRANSFER_AMOUNT_NGN, 'Amount exceeds the transfer limit')
+    .refine(
+      (amount) =>
+        Math.abs(amount * 100 - Math.round(amount * 100)) <=
+        Number.EPSILON * Math.max(1, Math.abs(amount * 100)) * 4,
+      'Amount must have at most 2 decimal places',
+    ),
   recipient: z.string().min(1, 'Recipient is required'),
   reference: z.string().optional(),
 });
@@ -24,11 +46,76 @@ export type InitiateTransferInput = z.infer<typeof initiateTransferSchema>;
 
 // Schema for verify-account endpoint
 export const verifyAccountSchema = z.object({
-  accountNumber: z.string().min(1, 'Account number is required'),
-  bankCode: z.string().min(1, 'Bank code is required'),
+  accountNumber: nubanAccountNumber,
+  bankCode: paystackBankCode,
 });
 
 export type VerifyAccountInput = z.infer<typeof verifyAccountSchema>;
+
+// Schema for the banks endpoint query string. The endpoint currently serves
+// Nigerian NUBAN banks only, so rejecting unsupported query parameters keeps
+// the public contract explicit rather than silently ignoring user input.
+export const banksQuerySchema = z
+  .object({
+    country: z.literal('nigeria').default('nigeria'),
+  })
+  .strict();
+
+export type BanksQuery = z.infer<typeof banksQuerySchema>;
+
+// Schema for transfer-status endpoint
+export const transferStatusSchema = z.object({
+  reference: z.string().min(1, 'Reference is required'),
+});
+
+export type TransferStatusInput = z.infer<typeof transferStatusSchema>;
+
+// Schema for the payment-status/stream endpoint query string. The stream is
+// keyed by the client session id minted in `clientSession.ts` (a UUID), so a
+// non-empty, bounded string is all that is required — rejecting a missing or
+// oversized value keeps the SSE endpoint from opening a subscription for
+// garbage input.
+export const paymentStatusStreamQuerySchema = z.object({
+  sessionId: z
+    .string()
+    .min(1, 'sessionId is required')
+    .max(200, 'sessionId is too long'),
+});
+
+export type PaymentStatusStreamQuery = z.infer<
+  typeof paymentStatusStreamQuerySchema
+>;
+
+// Schema for the events endpoint query string
+export const eventsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  offset: z.coerce.number().int().nonnegative().default(0),
+});
+
+export type EventsQuery = z.infer<typeof eventsQuerySchema>;
+
+/**
+ * Error thrown by {@link fetchWithRetry} when the server answers with a
+ * non-OK status.
+ *
+ * Carries the status and the original `Response` as typed fields so
+ * {@link withRetry} can decide whether the status is retryable without
+ * casting. Previously these were stapled onto a plain `Error` through `any`,
+ * which left the status invisible to the retry check.
+ */
+export class HttpResponseError extends Error {
+  /** HTTP status code of the failed response. */
+  readonly status: number;
+  /** The original response, for callers that need headers or a body. */
+  readonly response: Response;
+
+  constructor(response: Response) {
+    super(`HTTP ${response.status}: ${response.statusText}`);
+    this.name = 'HttpResponseError';
+    this.status = response.status;
+    this.response = response;
+  }
+}
 
 /**
  * Retry configuration for API requests with exponential backoff
@@ -40,6 +127,11 @@ export interface RetryConfig {
   backoffMultiplier?: number;
   retryableStatusCodes?: number[];
   retryableErrors?: (error: unknown) => boolean;
+}
+
+interface HttpError extends Error {
+  status?: number;
+  response?: Response;
 }
 
 /**
@@ -83,11 +175,12 @@ function calculateBackoffDelay(
   config: Required<RetryConfig>,
 ): number {
   // Exponential backoff: initialDelay * (multiplier ^ attempt)
-  const exponentialDelay = config.initialDelayMs * Math.pow(config.backoffMultiplier, attempt);
-  
+  const exponentialDelay =
+    config.initialDelayMs * Math.pow(config.backoffMultiplier, attempt);
+
   // Add jitter (±25%) to avoid thundering herd
   const jitter = exponentialDelay * 0.25 * (Math.random() * 2 - 1);
-  
+
   // Cap at max delay
   return Math.min(config.maxDelayMs, exponentialDelay + jitter);
 }
@@ -114,8 +207,10 @@ export async function withRetry<T>(
   const mergedConfig: Required<RetryConfig> = {
     ...DEFAULT_RETRY_CONFIG,
     ...config,
-    retryableStatusCodes: config.retryableStatusCodes ?? DEFAULT_RETRY_CONFIG.retryableStatusCodes,
-    retryableErrors: config.retryableErrors ?? DEFAULT_RETRY_CONFIG.retryableErrors,
+    retryableStatusCodes:
+      config.retryableStatusCodes ?? DEFAULT_RETRY_CONFIG.retryableStatusCodes,
+    retryableErrors:
+      config.retryableErrors ?? DEFAULT_RETRY_CONFIG.retryableErrors,
   };
 
   let lastError: unknown;
@@ -126,11 +221,21 @@ export async function withRetry<T>(
     } catch (error) {
       lastError = error;
 
+      // An aborted request must never be retried, whatever the caller's
+      // `retryableErrors` says — the caller asked us to stop.
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error;
+      }
+
       // Check if error is retryable
       const isRetryableError = mergedConfig.retryableErrors(error);
       const isRetryableStatus =
-        error instanceof Response &&
-        mergedConfig.retryableStatusCodes.includes(error.status);
+        error instanceof Response
+          ? mergedConfig.retryableStatusCodes.includes(error.status)
+          : error instanceof Error &&
+            mergedConfig.retryableStatusCodes.includes(
+              (error as HttpError).status ?? 0,
+            );
 
       if (!isRetryableError && !isRetryableStatus) {
         throw error; // Non-retryable error, throw immediately
@@ -161,15 +266,16 @@ export async function fetchWithRetry(
 ): Promise<Response> {
   return withRetry(async () => {
     const response = await fetch(url, options);
-    
+
     if (!response.ok) {
       // Throw error to trigger retry for non-OK responses
-      const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
-      (error as any).status = response.status;
-      (error as any).response = response;
+      const error: HttpError = Object.assign(
+        new Error(`HTTP ${response.status}: ${response.statusText}`),
+        { status: response.status, response },
+      );
       throw error;
     }
-    
+
     return response;
   }, config);
 }

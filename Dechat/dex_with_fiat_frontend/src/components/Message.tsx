@@ -12,6 +12,8 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import { toDate } from '@/lib/messageUtils';
+import { BLOCKED_URL, sanitizeUrl } from '@/lib/markdownSanitizer';
+import { MAX_AUTO_RETRIES, useMessageRetry } from '@/hooks/useMessageRetry';
 import { useTranslation } from '@/contexts/TranslationContext';
 import { motion, useReducedMotion } from 'framer-motion';
 import CopyButton from '@/components/ui/CopyButton';
@@ -23,7 +25,12 @@ interface MessageProps {
     actionType: string,
     data?: Record<string, unknown>,
   ) => void;
-  onRetry?: (messageId: string) => void;
+  /**
+   * Resend a message that failed to send. Receives the message id and the
+   * *original* content the user typed (from `originalPayload` when available),
+   * so the caller never has to reconstruct it and the user never has to retype.
+   */
+  onRetry?: (messageId: string, content: string) => void | Promise<void>;
   shouldAnimate?: boolean;
 }
 
@@ -44,6 +51,18 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
   const isPending = message.metadata?.status === 'pending';
   const isFailed = message.metadata?.status === 'failed';
 
+  // Resend uses the payload captured at send time so the user's original text
+  // survives any post-failure rewrite of `content`.
+  const retryContent = message.originalPayload?.content ?? message.content;
+  const retry = useMessageRetry({
+    messageId: message.id,
+    content: retryContent,
+    isFailed: hasError,
+    onRetry,
+  });
+  // Attempts already recorded on the message, plus the ones this component has
+  // made since it mounted.
+  const totalRetryAttempts = (message.error?.retryAttempts ?? 0) + retry.attempts;
 
   // Currency conversion hook for transaction amounts
   const amountForConversion = message.metadata?.transactionData?.amountIn 
@@ -107,16 +126,30 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
       h3: ({ children }) => (
         <h3 className="text-sm font-bold mb-1">{children}</h3>
       ),
-      a: ({ href, children }) => (
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-400 hover:underline"
-        >
-          {children}
-        </a>
-      ),
+      // `urlTransform={sanitizeUrl}` (below) rewrites every unsafe href/src to
+      // BLOCKED_URL before it reaches these renderers, so a blocked link or
+      // image is shown as plain text rather than something clickable (#1498).
+      a: ({ href, children }) =>
+        !href || href === BLOCKED_URL ? (
+          <span>{children}</span>
+        ) : (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="message-link"
+            className={`underline underline-offset-2 hover:no-underline ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}
+          >
+            {children}
+          </a>
+        ),
+      img: ({ src, alt }) =>
+        typeof src !== 'string' || !src || src === BLOCKED_URL ? (
+          <span>{alt}</span>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt={alt ?? ''} />
+        ),
     }),
     [isDarkMode],
   );
@@ -124,13 +157,32 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
   // Safely parse the timestamp — guards against deserialized string values
   const timestamp = toDate(message.timestamp);
 
+  const handleMessageKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'r' && !e.ctrlKey && !e.metaKey) {
+      if (hasError) {
+        retry.retryNow();
+      }
+    } else if (e.key === 'Escape') {
+      (e.currentTarget as HTMLElement).blur();
+    } else if (e.key === 'c' && !e.ctrlKey && !e.metaKey) {
+      if (message.metadata?.transactionData?.txHash) {
+        navigator.clipboard.writeText(message.metadata.transactionData.txHash);
+      }
+    }
+  };
+
   return (
     <motion.div
       data-testid="message"
       initial={shouldAnimate ? "initial" : false}
       animate="animate"
       variants={variants}
-      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-8`}
+      role="group"
+      tabIndex={0}
+      aria-label={`${isUser ? 'Your' : 'Assistant'} message`}
+      aria-keyshortcuts={hasError ? 'R C Escape' : 'C Escape'}
+      onKeyDown={handleMessageKeyDown}
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-8 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent`}
     >
       <div className={`max-w-[80%] ${isUser ? 'order-2' : 'order-1'}`}>
         {/* Avatar */}
@@ -167,8 +219,11 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
             >
               <div className="whitespace-pre-wrap break-words min-h-[20px] flex items-center">
                 {isPending ? (
-                  <div className="flex items-center space-x-2 text-gray-400">
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                  <div
+                    data-testid="message-loading"
+                    className={`flex items-center space-x-2 ${isUser ? 'text-white' : isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}
+                  >
+                    <Loader2 className={`w-4 h-4 ${shouldReduceMotion ? '' : 'animate-spin'}`} />
                     <span className="text-sm italic">{t('common.loading')}</span>
                   </div>
                 ) : isUser ? (
@@ -177,6 +232,7 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
                   <ReactMarkdown
                     className="prose prose-sm max-w-none"
                     components={markdownComponents}
+                    urlTransform={sanitizeUrl}
                   >
                     {maskedContent}
                   </ReactMarkdown>
@@ -186,7 +242,8 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
 
             {/* Timestamp with read receipts */}
             <div
-              className={`flex items-center mt-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} ${isUser ? 'justify-end' : 'justify-start'} group/timestamp`}
+              data-testid="message-timestamp"
+              className={`flex items-center mt-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} ${isUser ? 'justify-end' : 'justify-start'} group/timestamp`}
             >
               <span className="relative">
                 <Clock className="w-3 h-3 mr-1" />
@@ -206,16 +263,18 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
                 minute: '2-digit',
               })}</span>
               {isUser && message.metadata?.readAt && (
-                <CheckCheck className="w-3.5 h-3.5 ml-1 text-blue-400" aria-label="Read" />
+                <CheckCheck className={`w-3.5 h-3.5 ml-1 ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`} aria-label="Read" />
               )}
               {isUser && !message.metadata?.readAt && message.metadata?.deliveredAt && (
-                <Check className="w-3.5 h-3.5 ml-1 text-blue-400" aria-label="Delivered" />
+                <Check className={`w-3.5 h-3.5 ml-1 ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`} aria-label="Delivered" />
               )}
             </div>
 
             {/* Error State */}
             {hasError && (
               <div
+                data-testid="message-error"
+                role="alert"
                 className={`mt-3 inline-flex flex-col gap-2 rounded-lg border px-3 py-2 text-xs ${
                   isDarkMode
                     ? 'border-red-700 bg-red-950/40 text-red-200'
@@ -228,23 +287,51 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
                     {message.error?.message || 'Failed to send message'}
                   </span>
                 </div>
-                {message.error?.retryAttempts && message.error.retryAttempts > 0 && (
+                {totalRetryAttempts > 0 && (
                   <div className="text-xs opacity-75">
-                    Retry attempts: {message.error.retryAttempts}
+                    Retry attempts: {totalRetryAttempts}
                   </div>
                 )}
                 {onRetry && (
-                  <button
-                    onClick={() => onRetry(message.id)}
-                    className={`mt-2 flex items-center justify-center gap-2 px-3 py-1 rounded-lg text-xs font-medium transition-all transform hover:scale-105 active:scale-95 ${
-                      isDarkMode
-                        ? 'bg-red-700/40 hover:bg-red-700/60 border border-red-600'
-                        : 'bg-red-100 hover:bg-red-200 border border-red-300'
-                    }`}
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    Retry
-                  </button>
+                  <>
+                    <div
+                      className="text-xs opacity-75"
+                      aria-live="polite"
+                      data-testid="message-retry-status"
+                    >
+                      {retry.isRetrying
+                        ? t('chat.resending')
+                        : retry.secondsUntilNextRetry !== null
+                          ? t('chat.retry_countdown', {
+                              seconds: retry.secondsUntilNextRetry,
+                              attempt: retry.attempts + 1,
+                              max: MAX_AUTO_RETRIES,
+                            })
+                          : t('chat.retry_exhausted', {
+                              max: MAX_AUTO_RETRIES,
+                            })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={retry.retryNow}
+                      disabled={retry.isRetrying}
+                      data-testid="message-retry-button"
+                      aria-label={t('chat.retry_message', {
+                        content: retryContent,
+                      })}
+                      title={retryContent}
+                      className={`mt-2 flex items-center justify-center gap-2 px-3 py-1 rounded-lg text-xs font-medium transition-all transform hover:scale-105 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 ${
+                        isDarkMode
+                          ? 'bg-red-700/40 hover:bg-red-700/60 border border-red-600'
+                          : 'bg-red-100 hover:bg-red-200 border border-red-300'
+                      }`}
+                    >
+                      <RotateCcw
+                        className={`w-3 h-3 ${retry.isRetrying ? 'animate-spin' : ''}`}
+                      />
+                      {retry.isRetrying ? t('common.loading') : t('common.retry')}
+                    </button>
+                  </>
                 )}
               </div>
             )}
@@ -395,6 +482,7 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
                           value={message.metadata.transactionData.transactionId}
                           className="flex-shrink-0 p-0.5"
                           iconClassName="w-3 h-3"
+                          ariaLabel="Copy transaction ID"
                         />
                       </div>
                     </div>
@@ -412,6 +500,7 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
                           value={message.metadata.transactionData.txHash}
                           className="flex-shrink-0 p-0.5"
                           iconClassName="w-3 h-3"
+                          ariaLabel="Copy transaction hash"
                         />
                       </div>
                     </div>
@@ -429,6 +518,7 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
                           value={message.metadata.transactionData.receiptId}
                           className="flex-shrink-0 p-0.5"
                           iconClassName="w-3 h-3"
+                          ariaLabel="Copy receipt ID"
                         />
                       </div>
                     </div>

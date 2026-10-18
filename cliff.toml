@@ -4,6 +4,8 @@ header = """
 
 All notable changes to this project will be documented in this file.
 """
+
+
 # NOTE: `body` is rendered once *per release*, so the release fields
 # (`version`, `timestamp`, `commits`) are at the root of the context.
 # There is no `releases` variable here — only `footer` gets that.
@@ -20,6 +22,7 @@ body = """
 {%- endfor %}
 {%- endif %}
 {%- endfor %}
+
 """
 trim = true
 

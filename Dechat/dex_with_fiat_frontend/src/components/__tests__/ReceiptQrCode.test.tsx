@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import ReceiptQrCode from '../ReceiptQrCode';
 
-let mockToDataURL: ReturnType<typeof vi.fn>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let mockToDataURL: any;
 
 vi.mock('qrcode', () => ({
   default: {
@@ -19,7 +20,7 @@ describe('ReceiptQrCode', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     const qrcode = await import('qrcode');
-    mockToDataURL = qrcode.default.toDataURL;
+    mockToDataURL = qrcode.default.toDataURL as unknown as ReturnType<typeof vi.fn>;
     mockToDataURL.mockResolvedValue('data:image/png;base64,qr');
   });
 

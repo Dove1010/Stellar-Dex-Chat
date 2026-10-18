@@ -185,6 +185,10 @@ export default function ReceiptDrawer({
   const { isDarkMode } = useTheme();
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Keyboard shortcuts: Escape closes, Backspace/Delete clears history (issue #528)
+
 
   // Inject print styles once
   useEffect(() => {
@@ -203,11 +207,13 @@ export default function ReceiptDrawer({
       if (!isOpen) return;
       if (e.key === 'Escape') {
         onClose();
-      } else if ((e.key === 'Backspace' || e.key === 'Delete') && onClearHistory) {
+      } else if ((e.key === 'Backspace' || e.key === 'Delete') && onClearHistory && !isDeleting) {
+        setIsDeleting(true);
         onClearHistory();
+        setTimeout(() => setIsDeleting(false), 300);
       }
     },
-    [isOpen, onClose, onClearHistory],
+    [isOpen, onClose, onClearHistory, isDeleting],
   );
 
   useEffect(() => {
@@ -284,9 +290,16 @@ export default function ReceiptDrawer({
               )}
               {transactions.length > 0 && onClearHistory && (
                 <button
-                  onClick={onClearHistory}
-                  className="receipt-drawer-clear-btn p-2 text-gray-500 hover:text-red-500 transition-colors"
+                  type="button"
+                  onClick={() => {
+                    setIsDeleting(true);
+                    onClearHistory();
+                    setTimeout(() => setIsDeleting(false), 300);
+                  }}
+                  disabled={isDeleting}
+                  className="receipt-drawer-clear-btn p-2 text-gray-500 hover:text-red-500 disabled:opacity-50 transition-colors"
                   title="Clear history (Backspace)"
+                  aria-busy={isDeleting}
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { chatTelemetry } from '@/lib/chatTelemetry';
 
 /**
  * Verify actual internet connectivity by pinging a reliable endpoint.
@@ -40,11 +41,19 @@ export function useOnlineStatus() {
     // Set initial state
     if (typeof window !== 'undefined') {
       setIsOnline(window.navigator.onLine);
+      chatTelemetry.networkStatus({
+        status: window.navigator.onLine ? 'online' : 'offline',
+        source: 'initial',
+      });
     }
 
     const handleOnline = async () => {
       const hasConnectivity = await verifyConnectivity();
       setIsOnline(hasConnectivity);
+      chatTelemetry.networkStatus({
+        status: hasConnectivity ? 'online' : 'offline',
+        source: 'connectivity-check',
+      });
       if (hasConnectivity) {
         setWasOffline(true);
       }
@@ -53,6 +62,7 @@ export function useOnlineStatus() {
     const handleOffline = () => {
       setIsOnline(false);
       setWasOffline(true);
+      chatTelemetry.networkStatus({ status: 'offline', source: 'browser-event' });
     };
 
     if (typeof window !== 'undefined') {
