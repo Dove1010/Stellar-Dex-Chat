@@ -5311,8 +5311,22 @@ impl FiatBridge {
     }
 
     /// Set a per-operator daily withdrawal limit.
+    ///
+    /// `limit` is denominated in the token's smallest unit (stroops for XLM).
+    /// It must be strictly positive — zero or negative values are rejected with
+    /// [`Error::ZeroAmount`] because a non-positive cap would either silently
+    /// block all withdrawals (0) or wrap around on comparison (negative).
+    ///
+    /// The limit applies per UTC calendar day and is tracked independently for
+    /// each `operator` address in instance storage under
+    /// [`DataKey::OperatorDailyLimit`].  Calls to `withdraw` accumulate against
+    /// this cap; once reached, further withdrawals by that operator fail with
+    /// [`Error::OperatorDailyLimitExceeded`] until the day rolls over.
     pub fn set_operator_daily_limit(env: Env, operator: Address, limit: i128) -> Result<(), Error> {
         let _admin = Self::require_admin(&env)?;
+        if limit <= 0 {
+            return Err(Error::ZeroAmount);
+        }
         env.storage()
             .instance()
             .set(&DataKey::OperatorDailyLimit(operator), &limit);
