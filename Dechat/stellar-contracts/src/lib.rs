@@ -2262,6 +2262,26 @@ impl FiatBridge {
         Ok(())
     }
 
+    /// Batch variant of [`unpause`](FiatBridge::unpause): unpauses the contract
+    /// `count` times in a single invocation. Each unpause emits its own
+    /// `UnpausedEvent` so off-chain indexers see the full sequence. Returns the
+    /// number of unpauses actually applied (always equal to `count` on success).
+    ///
+    /// # Errors
+    /// * [`Error::Unauthorized`] – If the caller is not the admin.
+    pub fn batch_unpause(env: Env, count: u32) -> Result<u32, Error> {
+        let admin = Self::require_admin(&env)?;
+        for _ in 0..count {
+            env.storage().instance().set(&DataKey::Paused, &false);
+            UnpausedEvent {
+                version: EVENT_VERSION,
+                by: admin.clone(),
+            }
+            .publish(&env);
+        }
+        Ok(count)
+    }
+
     /// Set the anti-sandwich delay in ledgers. Use 0 to disable. Requires admin.
     ///
     /// The delay is enforced by [`execute_withdrawal`](FiatBridge::execute_withdrawal), not by
@@ -3358,10 +3378,14 @@ impl FiatBridge {
             return 0;
         }
 
-        env.storage()
+        // Edge case: clamp to 0 — fees are a non-negative accumulator and a
+        // negative stored value would indicate corruption, not a real debt.
+        let fees: i128 = env
+            .storage()
             .persistent()
             .get(&DataKey::FeeVault(token))
-            .unwrap_or(0)
+            .unwrap_or(0);
+        fees.max(0)
     }
 
     /// Withdraws accrued protocol fees for a specific token to the fee recipient.
