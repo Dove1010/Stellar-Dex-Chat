@@ -788,7 +788,7 @@ export default function BankDetailsModal({
                                   onChange={(e) =>
                                     setEditingName(e.target.value)
                                   }
-                                  className="flex-1 bg-gray-700 text-white text-sm px-2 py-1 rounded border border-gray-600 focus:outline-none focus:border-blue-500"
+                                  className="flex-1 theme-input text-sm px-2 py-1 rounded border theme-input-border focus:outline-none focus:border-blue-500"
                                   autoFocus
                                 />
                                 <button
@@ -870,7 +870,7 @@ export default function BankDetailsModal({
                         value={bankSearch}
                         onChange={(e) => setBankSearch(e.target.value)}
                         placeholder="Search banks…"
-                        className="w-full bg-gray-800 border border-gray-600 rounded-lg pl-9 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+                        className="w-full theme-input border theme-input-border rounded-lg pl-9 pr-4 py-2 placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
                       />
                     </div>
 
@@ -957,7 +957,7 @@ export default function BankDetailsModal({
                     onBlur={handleVerifyAccount}
                     maxLength={10}
                     placeholder="0000000000"
-                    className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                    className="w-full theme-input border theme-input-border rounded-lg px-4 py-3 placeholder-gray-500 focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
@@ -974,12 +974,12 @@ export default function BankDetailsModal({
                     placeholder="GB29 NWBK 6016 1331 9268 19"
                     aria-describedby={ibanError ? 'iban-error' : undefined}
                     aria-invalid={ibanTouched && !!ibanError}
-                    className={`w-full bg-gray-800 border rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none uppercase tracking-widest text-sm ${
+                    className={`w-full theme-input border rounded-lg px-4 py-3 placeholder-gray-500 focus:outline-none uppercase tracking-widest text-sm ${
                       ibanTouched && ibanError
                         ? 'border-red-500 focus:border-red-500'
                         : ibanTouched && iban && !ibanError
                           ? 'border-green-500 focus:border-green-500'
-                          : 'border-gray-600 focus:border-blue-500'
+                          : 'theme-input-border focus:border-blue-500'
                     }`}
                   />
                   {ibanTouched && ibanError && (
@@ -1076,7 +1076,7 @@ export default function BankDetailsModal({
                             setSaveNameError('');
                           }}
                           placeholder={verifiedAccount.account_name}
-                          className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+                          className="w-full theme-input border theme-input-border rounded-lg px-3 py-2 placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
                           aria-describedby={
                             saveNameError ? 'save-name-error' : undefined
                           }
