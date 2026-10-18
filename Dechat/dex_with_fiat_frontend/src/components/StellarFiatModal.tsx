@@ -748,9 +748,9 @@ export default function StellarFiatModal({
                 placeholder="0.00"
                 disabled={isTransactionBusy}
                 aria-invalid={isAmountInvalid || isOverLimit ? true : undefined}
-                className={`w-full bg-gray-800 border rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${isAmountInvalid || isOverLimit
+                className={`theme-input w-full border rounded-lg px-4 py-3 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${isAmountInvalid || isOverLimit
                   ? 'border-red-500 focus:border-red-400'
-                  : 'border-gray-600 focus:border-blue-500'
+                  : 'theme-input-border focus:border-blue-500'
                   }`}
               />
               {isAmountInvalid && amount && (
@@ -1009,7 +1009,7 @@ export default function StellarFiatModal({
                   onChange={(e) => setRecipient(e.target.value)}
                   placeholder="G..."
                   disabled={isTransactionBusy}
-                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed font-mono text-sm"
+                  className="theme-input theme-input-border w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 disabled:opacity-60 disabled:cursor-not-allowed font-mono text-sm"
                 />
               </div>
             )}
@@ -1106,7 +1106,7 @@ export default function StellarFiatModal({
               onChange={(e) => setTwoFactorConfirmation(e.target.value)}
               placeholder="Enter last 4 digits"
               maxLength={4}
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 mb-4"
+              className="theme-input theme-input-border w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 mb-4"
             />
             <div className="flex gap-3">
               <button
