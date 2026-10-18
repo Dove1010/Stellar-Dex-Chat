@@ -6,6 +6,7 @@ import { transactionAmountSchema, type TransactionAmountProps } from '@/lib/tran
 import { motion } from 'framer-motion';
 import { useUserPreferences } from '@/contexts/UserPreferencesContext';
 import SkeletonTransactionAmount from '@/components/ui/skeleton/SkeletonTransactionAmount';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 /**
  * Component to display transaction amounts with live currency conversion.
@@ -150,5 +151,24 @@ export function TransactionAmountDisplay(props: TransactionAmountProps) {
         </motion.span>
       )}
     </motion.div>
+  );
+}
+
+/**
+ * TransactionAmountDisplay wrapped in an ErrorBoundary so that a crash in the
+ * currency-conversion layer (e.g. an unexpected API shape) never takes the
+ * surrounding page down. The fallback renders the raw `amount asset` string so
+ * the user always sees a value.
+ */
+export function TransactionAmountDisplayWithBoundary(props: TransactionAmountProps) {
+  const fallback = (
+    <span data-testid="transaction-amount-fallback">
+      {props.amount} {props.asset}
+    </span>
+  );
+  return (
+    <ErrorBoundary fallback={fallback}>
+      <TransactionAmountDisplay {...props} />
+    </ErrorBoundary>
   );
 }
