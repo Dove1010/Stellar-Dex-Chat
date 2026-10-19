@@ -33,7 +33,6 @@ Generated from the `Error` enum in `Dechat/stellar-contracts/src/lib.rs`.
 | 312 | `CircuitBreakerActive` | Constraints | Circuit breaker is active (threshold exceeded) |
 | 313 | `InvalidMemoHash` | Constraints | Memo hash is invalid |
 | 314 | `FeeWithdrawalExceedsBalance` | Constraints | Fee withdrawal exceeds available balance |
-| 315 | `CircuitBreakerTripped` | Constraints | Circuit breaker has been tripped |
 | 316 | `MaxDeniedReached` | Constraints | Maximum denied addresses reached |
 | 317 | `InvalidAmount` | Constraints | Amount format is invalid |
 | 318 | `SelfReferentialAddress` | Constraints | Address cannot reference itself |
@@ -42,21 +41,16 @@ Generated from the `Error` enum in `Dechat/stellar-contracts/src/lib.rs`.
 | 402 | `NoFeesToWithdraw` | Funds & Balances | No accumulated fees to withdraw |
 | 501 | `RequestNotFound` | Withdrawal Queue | Withdrawal request does not exist |
 | 502 | `WithdrawalLocked` | Withdrawal Queue | Withdrawal request not yet unlocked |
-| 503 | `OperatorDailyLimitExceeded` | Withdrawal Queue | Operator's daily withdrawal limit exceeded |
 | 601 | `ActionNotQueued` | Governance & Timelock | Admin action is not queued |
 | 602 | `ActionNotReady` | Governance & Timelock | Admin action timelock has not elapsed |
-| 603 | `InactivityThresholdNotReached` | Governance & Timelock | Inactivity threshold not yet reached |
-| 604 | `NoEmergencyRecoveryAddress` | Governance & Timelock | No emergency recovery address configured |
 | 605 | `UpgradeNotReady` | Governance & Timelock | Upgrade timelock has not elapsed |
 | 606 | `UpgradeProposalMissing` | Governance & Timelock | No upgrade proposal pending |
 | 607 | `UpgradeDelayTooShort` | Governance & Timelock | Upgrade delay is below MIN_UPGRADE_DELAY |
 | 701 | `OracleNotSet` | External Services | Oracle not configured |
 | 702 | `OraclePriceInvalid` | External Services | Oracle returned invalid price |
-| 703 | `SlippageExceeded` | External Services | Slippage exceeds configured maximum |
 | 704 | `SlippageTooHigh` | External Services | Slippage is too high for this operation |
 | 801 | `WithdrawalQuotaExceeded` | Quota & Migration | Withdrawal quota exceeded |
 | 802 | `MigrationAlreadyComplete` | Quota & Migration | Data migration already complete |
-| 803 | `BatchOperationFailed` | Quota & Migration | Batch operation failed |
 | 901 | `InvalidNonce` | Replay Protection | Provided nonce is ahead of current (jump) |
 | 902 | `StaleNonce` | Replay Protection | Provided nonce is behind current (replay) |
 | 1001 | `BelowMinimum` | Deposit Floor | Amount below minimum deposit |
@@ -78,10 +72,10 @@ Generated from the `Error` enum in `Dechat/stellar-contracts/src/lib.rs`.
 | Authorization | 201–207 | Access control and permissions |
 | Constraints | 301–319 | Amount, limit, and business rule validation |
 | Funds & Balances | 401–402 | Balance checks and fee management |
-| Withdrawal Queue | 501–503 | Withdrawal request processing |
-| Governance & Timelock | 601–607 | Admin actions and contract upgrades |
-| External Services | 701–704 | Oracle and pricing integration |
-| Quota & Migration | 801–803 | Quota enforcement and data migrations |
+| Withdrawal Queue | 501–502 | Withdrawal request processing |
+| Governance & Timelock | 601–602, 605–607 | Admin actions and contract upgrades |
+| External Services | 701–702, 704 | Oracle and pricing integration |
+| Quota & Migration | 801–802 | Quota enforcement and data migrations |
 | Replay Protection | 901–902 | Nonce validation |
 | Deposit Floor | 1001 | Minimum deposit enforcement |
 | Multi-sig | 1101–1108 | Multi-signature proposal and execution |

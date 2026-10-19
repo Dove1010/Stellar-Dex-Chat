@@ -37,9 +37,13 @@ The data payload depends on the event type.
 | migration | 1 | (1, "migration") | (cursor, count) |
 | batch ok | 1 | (1, "batch_ok") | (success_count, total_ops) |
 | batch fail | 1 | (1, "batch_fail") | (failed_index, total_ops) |
-| upgrade proposal | 1 | (1, "upg_prop") | (wasm_hash, executable_after) |
-| upgrade executed | 1 | (1, "upg_exec") | wasm_hash |
-| upgrade cancelled | 1 | (1, "upg_cancel") | (admin, wasm_hash, nonce) |
+| upgrade proposed | 1 | `upgrade_proposed_event` | `{ version, wasm_hash, executable_after }` |
+| upgrade executed | 1 | `upgrade_executed_event` | `{ version, wasm_hash }` |
+| upgrade cancelled | 1 | `upgrade_cancelled_event` | `{ version, admin, wasm_hash, nonce }` |
+| multisig proposed | 1 | `multisig_proposed_event` | `{ version, id, proposer }` |
+| multisig approved | 1 | `multisig_approved_event` | `{ version, id, signer }` |
+| multisig revoked | 1 | `multisig_revoked_event` | `{ version, id, signer }` |
+| multisig executed | 1 | `multisig_executed_event` | `{ version, id }` |
 
 ---
 
