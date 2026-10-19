@@ -21,8 +21,6 @@ Thumbs.db
 .idea/
 
 # Environment files
-.env
-.env.*
 !.env.example
 
 # Contract build artifacts
@@ -35,3 +33,7 @@ pr.md/stellar-contracts/
 /Stellar-Dex-Chat
 package-lock.json
 yarn.lock
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+config.bat
