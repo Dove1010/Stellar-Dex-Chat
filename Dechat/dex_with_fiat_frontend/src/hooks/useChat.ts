@@ -323,6 +323,14 @@ What would you like to do today? I'm here to make your XLM-to-fiat journey smoot
               ...m,
               content:
                 'Sorry, I encountered an error processing your request. Please try again.',
+              // Setting error here ensures hasError=true in the Message component so
+              // the red border and retry UI render for assistant messages, not just
+              // for the user's optimistic bubble (bug #758).
+              error: {
+                message: 'Failed to get a response. Please try again.',
+                timestamp: new Date(),
+                retryAttempts: m.error?.retryAttempts ?? 0,
+              },
               metadata: {
                 ...m.metadata,
                 status: 'failed',
