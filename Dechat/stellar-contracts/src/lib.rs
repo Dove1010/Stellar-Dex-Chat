@@ -49,8 +49,8 @@ pub enum Error {
     NoPendingAdmin = 203,
     InvalidRecipient = 204,
     NotOperator = 205,
-    SameAdmin = 207,
     OperatorCapReached = 206,
+    SameAdmin = 207,
 
     // --- 300 series: Constraints & Limits ---
     ZeroAmount = 301,
@@ -67,6 +67,8 @@ pub enum Error {
     CircuitBreakerActive = 312,
     InvalidMemoHash = 313,
     FeeWithdrawalExceedsBalance = 314,
+    /// Deprecated: the active circuit breaker error is `CircuitBreakerActive`.
+    #[deprecated(note = "use CircuitBreakerActive instead")]
     CircuitBreakerTripped = 315,
     MaxDeniedReached = 316,
     InvalidAmount = 317,
@@ -80,12 +82,18 @@ pub enum Error {
     // --- 500 series: Withdrawal Queue ---
     RequestNotFound = 501,
     WithdrawalLocked = 502,
+    /// Deprecated: no contract path returns this error.
+    #[deprecated(note = "unused error code; do not use")]
     OperatorDailyLimitExceeded = 503,
 
     // --- 600 series: Governance & Timelock ---
     ActionNotQueued = 601,
     ActionNotReady = 602,
+    /// Deprecated: no contract path returns this error.
+    #[deprecated(note = "unused error code; do not use")]
     InactivityThresholdNotReached = 603,
+    /// Deprecated: no contract path returns this error.
+    #[deprecated(note = "unused error code; do not use")]
     NoEmergencyRecoveryAddress = 604,
     UpgradeNotReady = 605,
     UpgradeProposalMissing = 606,
@@ -94,12 +102,16 @@ pub enum Error {
     // --- 700 series: External Services ---
     OracleNotSet = 701,
     OraclePriceInvalid = 702,
+    /// Deprecated: use `SlippageTooHigh`; no contract path returns this error.
+    #[deprecated(note = "use SlippageTooHigh instead")]
     SlippageExceeded = 703,
     SlippageTooHigh = 704,
 
     // --- 800 series: Quota & Migration ---
     WithdrawalQuotaExceeded = 801,
     MigrationAlreadyComplete = 802,
+    /// Deprecated: no contract path returns this error.
+    #[deprecated(note = "unused error code; do not use")]
     BatchOperationFailed = 803,
 
     // --- 900 series: Replay Protection ---
@@ -707,6 +719,52 @@ pub struct UpgradeCancelledEvent {
     pub admin: Address,
     pub wasm_hash: BytesN<32>,
     pub nonce: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct UpgradeProposedEvent {
+    pub version: u32,
+    pub wasm_hash: BytesN<32>,
+    pub executable_after: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct UpgradeExecutedEvent {
+    pub version: u32,
+    pub wasm_hash: BytesN<32>,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct MultisigProposedEvent {
+    pub version: u32,
+    pub id: u64,
+    pub proposer: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct MultisigApprovedEvent {
+    pub version: u32,
+    pub id: u64,
+    pub signer: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct MultisigRevokedEvent {
+    pub version: u32,
+    pub id: u64,
+    pub signer: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct MultisigExecutedEvent {
+    pub version: u32,
+    pub id: u64,
 }
 
 #[contractevent]
@@ -4981,7 +5039,6 @@ impl FiatBridge {
     ///
     /// # Errors
     /// * [`Error::Unauthorized`] – If caller is not admin.
-    #[allow(deprecated)]
     pub fn propose_upgrade(
         env: Env,
         new_wasm_hash: BytesN<32>,
@@ -5022,14 +5079,15 @@ impl FiatBridge {
                 executable_after: proposal.executable_after,
             },
         );
-        env.events().publish(
-            (EVENT_VERSION, Symbol::new(&env, "upg_prop")),
-            (new_wasm_hash, proposal.executable_after),
-        );
+        UpgradeProposedEvent {
+            version: EVENT_VERSION,
+            wasm_hash: new_wasm_hash,
+            executable_after: proposal.executable_after,
+        }
+        .publish(&env);
         Ok(())
     }
 
-    #[allow(deprecated)]
     pub fn execute_upgrade(env: Env) -> Result<(), Error> {
         let proposal: UpgradeProposal = env
             .storage()
@@ -5061,14 +5119,14 @@ impl FiatBridge {
         env.storage()
             .instance()
             .remove(&DataKey::UpgradeProposalTiming);
-        env.events().publish(
-            (EVENT_VERSION, Symbol::new(&env, "upg_exec")),
-            proposal.wasm_hash,
-        );
+        UpgradeExecutedEvent {
+            version: EVENT_VERSION,
+            wasm_hash: proposal.wasm_hash,
+        }
+        .publish(&env);
         Ok(())
     }
 
-    #[allow(deprecated)]
     pub fn cancel_upgrade(env: Env, nonce: u64) -> Result<(), Error> {
         let admin = Self::require_admin(&env)?;
 
@@ -5146,7 +5204,6 @@ impl FiatBridge {
 
     // ── Issue #100: Multi-sig Logic ──────────────────────────────────────────
 
-    #[allow(deprecated)]
     pub fn propose_multisig_action(
         env: Env,
         proposer: Address,
@@ -5183,15 +5240,16 @@ impl FiatBridge {
             .instance()
             .set(&DataKey::MultisigProposal(id), &proposal);
 
-        env.events().publish(
-            (EVENT_VERSION, Symbol::new(&env, "multisig_proposed")),
-            (id, proposer),
-        );
+        MultisigProposedEvent {
+            version: EVENT_VERSION,
+            id,
+            proposer,
+        }
+        .publish(&env);
 
         Ok(id)
     }
 
-    #[allow(deprecated)]
     pub fn approve_multisig_action(env: Env, signer: Address, id: u64) -> Result<(), Error> {
         signer.require_auth();
 
@@ -5219,10 +5277,12 @@ impl FiatBridge {
             .instance()
             .set(&DataKey::MultisigProposal(id), &proposal);
 
-        env.events().publish(
-            (EVENT_VERSION, Symbol::new(&env, "multisig_approved")),
-            (id, signer),
-        );
+        MultisigApprovedEvent {
+            version: EVENT_VERSION,
+            id,
+            signer,
+        }
+        .publish(&env);
 
         Ok(())
     }
@@ -5254,13 +5314,18 @@ impl FiatBridge {
                 env.storage()
                     .instance()
                     .set(&DataKey::MultisigProposal(id), &proposal);
+                MultisigRevokedEvent {
+                    version: EVENT_VERSION,
+                    id,
+                    signer,
+                }
+                .publish(&env);
                 Ok(())
             }
             None => Err(Error::SignerNotFound),
         }
     }
 
-    #[allow(deprecated)]
     pub fn execute_multisig_action(env: Env, id: u64) -> Result<(), Error> {
         let mut proposal: MultisigProposal = env
             .storage()
@@ -5285,8 +5350,11 @@ impl FiatBridge {
             .instance()
             .set(&DataKey::MultisigProposal(id), &proposal);
 
-        env.events()
-            .publish((EVENT_VERSION, Symbol::new(&env, "multisig_executed")), id);
+        MultisigExecutedEvent {
+            version: EVENT_VERSION,
+            id,
+        }
+        .publish(&env);
 
         Ok(())
     }
@@ -5480,6 +5548,9 @@ impl FiatBridge {
 
 #[cfg(test)]
 mod test_view_function_snapshots;
+
+#[cfg(test)]
+mod test_error_codes;
 
 #[cfg(any(test, feature = "testutils"))]
 mod test;

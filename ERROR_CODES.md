@@ -35,16 +35,12 @@ This document defines the stable error codes emitted by the Fiat Bridge contract
 | **601-699** | **Governance & Timelock**       |                                                                       |
 | 601         | `ActionNotQueued`               | The specified admin action ID does not exist.                         |
 | 602         | `ActionNotReady`                | The admin action is still within its timelock period, or `queue_admin_action` was called with `delay < MIN_TIMELOCK_DELAY` (34,560 ledgers ≈ 48 h). |
-| 603         | `InactivityThresholdNotReached` | The inactivity period required for emergency recovery has not passed. |
-| 604         | `NoEmergencyRecoveryAddress`    | No emergency recovery address has been configured.                    |
 | **701-799** | **External Services**           |                                                                       |
 | 701         | `OracleNotSet`                  | No price oracle has been configured.                                  |
 | 702         | `OraclePriceInvalid`            | The oracle returned an invalid or zero price.                         |
-| 703         | `SlippageExceeded`              | The price slippage exceeds the maximum allowed threshold.             |
 | **801-899** | **Quota & Migration**           |                                                                       |
 | 801         | `WithdrawalQuotaExceeded`       | The user's daily withdrawal quota has been exceeded.                  |
 | 802         | `MigrationAlreadyComplete`      | The escrow migration has already been completed.                      |
-| 803         | `BatchOperationFailed`          | One or more operations in the batch failed.                           |
 | **901-999** | **Replay Protection**           |                                                                       |
 | 901         | `InvalidNonce`                  | The provided nonce is invalid (too high/future nonce).                |
 | 902         | `StaleNonce`                    | The provided nonce has already been used (replay attempt).            |
