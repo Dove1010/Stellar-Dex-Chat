@@ -82,7 +82,7 @@ function SessionRow({
         }`}
       onClick={() => onLoad(session.id)}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex min-w-0 items-start justify-between">
         <div className="flex-1 min-w-0">
           <h3 className="theme-text-primary text-sm font-medium truncate">
             {session.title || 'New Conversation'}
@@ -108,7 +108,7 @@ function SessionRow({
           )}
         </div>
 
-        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex shrink-0 items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -604,7 +604,7 @@ export default function ChatHistorySidebar({
       retryLabel="Reload sidebar"
     >
       <div
-        className={`theme-surface theme-border h-full flex flex-col transition-all duration-300 border-r ${isCollapsed ? 'w-20' : 'w-full'
+        className={`theme-surface theme-border h-full min-w-0 overflow-x-hidden flex flex-col transition-all duration-300 border-r ${isCollapsed ? 'w-20' : 'w-full'
           } transition-colors duration-300`}
       >
         <p
@@ -675,7 +675,7 @@ export default function ChatHistorySidebar({
           )}
         </div>
 
-        <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+        <div ref={scrollContainerRef} onScroll={handleScroll} className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
           {isLoading ? (
             <SkeletonSidebar />
           ) : (
@@ -950,11 +950,11 @@ export default function ChatHistorySidebar({
                     className="theme-surface-muted theme-border rounded-lg border p-3"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div>
+                      <div className="min-w-0">
                         <p className="theme-text-primary text-xs font-semibold capitalize">
                           {entry.kind.replace('_', ' ')}
                         </p>
-                        <p className="theme-text-secondary text-xs mt-1">
+                        <p className="theme-text-secondary break-words text-xs mt-1">
                           {entry.message}
                         </p>
                       </div>

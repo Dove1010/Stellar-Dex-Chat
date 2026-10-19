@@ -109,6 +109,18 @@ describe('ChatHistorySidebar', () => {
     expect(root.className).toMatch(/\bborder-r\b/);
   });
 
+  it('contains long sidebar content without horizontal overflow (#786)', async () => {
+    mockUnpinnedSessions = [makeSession('overflow', { title: 'A'.repeat(300) })];
+    mockAllSessions = mockUnpinnedSessions;
+
+    const { container } = await renderAndLoad();
+    const root = container.firstElementChild as HTMLElement;
+    const scrollRegion = container.querySelector('.overflow-y-auto');
+
+    expect(root).toHaveClass('min-w-0', 'overflow-x-hidden');
+    expect(scrollRegion).toHaveClass('min-w-0', 'overflow-x-hidden');
+  });
+
   it('auto-scrolls the active conversation into view when rendered', async () => {
     const scrollIntoView = vi.fn();
     vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(scrollIntoView);

@@ -332,7 +332,7 @@ export default function AdminDashboard() {
 
   if (loadingMetrics) {
     return (
-      <div className="min-h-screen theme-app p-8">
+      <main className="min-h-screen theme-app p-8" aria-label="Admin dashboard loading">
         <div className="max-w-7xl mx-auto space-y-6">
           <SkeletonHeader />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -341,23 +341,24 @@ export default function AdminDashboard() {
             <SkeletonPayout />
           </div>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
     <AdminGuard>
-      <div className="min-h-screen theme-app p-8">
+      <main className="min-h-screen theme-app p-8" aria-labelledby="admin-dashboard-heading">
         <ErrorBoundary fallback={<AdminErrorFallback />}>
           <div className="max-w-7xl mx-auto">
             <div className="flex justify-between items-center mb-8">
-              <h1 className="text-3xl font-bold theme-text-primary">
+              <h1 id="admin-dashboard-heading" className="text-3xl font-bold theme-text-primary">
                 Admin Dashboard
               </h1>
               {enableAdminReconciliation && (
                 <Link
                   href="/admin/reconciliation"
                   className="theme-primary-button px-4 py-2 rounded-md"
+                  aria-label="Open admin reconciliation tools"
                 >
                   Reconciliation Tools
                 </Link>
@@ -563,6 +564,7 @@ export default function AdminDashboard() {
                       </label>
                       <select
                         id="audit-action-filter"
+                        aria-label="Filter admin audit log by action type"
                         value={optimisticFilter ?? actionFilter}
                         onChange={(event) => {
                           handleFilterChange(event.target.value);
@@ -616,6 +618,7 @@ export default function AdminDashboard() {
               {auditError && (
                 <div
                   className="px-6 py-4 text-sm theme-border border-b"
+                  role="alert"
                   style={{
                     backgroundColor: 'var(--color-danger-soft)',
                     color: 'var(--color-danger)',
@@ -726,7 +729,7 @@ export default function AdminDashboard() {
               </div>
 
               {auditLoading && (
-                <div className="px-6 py-8 text-center text-sm theme-text-muted">
+                <div className="px-6 py-8 text-center text-sm theme-text-muted" role="status" aria-live="polite">
                   Loading audit entries...
                 </div>
               )}
@@ -795,16 +798,18 @@ export default function AdminDashboard() {
 
             {showReauthPrompt && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                <div className="theme-surface rounded-lg shadow-xl p-6 max-w-md mx-4">
-                  <h3 className="text-lg font-semibold theme-text-primary mb-2">
+                <div className="theme-surface rounded-lg shadow-xl p-6 max-w-md mx-4" role="dialog" aria-modal="true" aria-labelledby="reauth-dialog-title" aria-describedby="reauth-dialog-description">
+                  <h3 id="reauth-dialog-title" className="text-lg font-semibold theme-text-primary mb-2">
                     Session Expired
                   </h3>
-                  <p className="theme-text-secondary mb-4">
+                  <p id="reauth-dialog-description" className="theme-text-secondary mb-4">
                     Your admin session has expired. Please refresh the page to re-authenticate.
                   </p>
                   <button
+                    type="button"
                     onClick={() => window.location.reload()}
                     className="theme-primary-button w-full py-2 rounded-md font-medium"
+                    aria-label="Refresh page to re-authenticate"
                   >
                     Refresh Page
                   </button>
@@ -821,7 +826,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         </ErrorBoundary>
-      </div>
+      </main>
     </AdminGuard>
   );
 }

@@ -60,6 +60,14 @@ describe('LandingPage – accessibility', () => {
     const decorativeIcons = container.querySelectorAll('svg[aria-hidden="true"]');
     expect(decorativeIcons.length).toBeGreaterThan(0);
   });
+
+  it('clips animated content at the page boundary on narrow viewports (#796)', () => {
+    const { container } = render(<LandingPage />);
+    const page = container.firstElementChild as HTMLElement;
+
+    expect(page).toHaveClass('w-full', 'overflow-x-hidden');
+    expect(screen.getByText(CONTRACT_ID).closest('a')).toHaveClass('min-w-0');
+  });
 });
 
 describe('LandingPage – keyboard shortcuts (#1185)', () => {

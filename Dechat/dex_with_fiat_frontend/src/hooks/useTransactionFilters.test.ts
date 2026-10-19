@@ -287,6 +287,25 @@ describe('useTransactionFilters', () => {
     expect(KEYBOARD_SHORTCUTS.cycleAsset.key).toBe('2');
     expect(KEYBOARD_SHORTCUTS.cycleNetwork.key).toBe('3');
   });
+
+  it('registers one keyboard listener across rerenders and removes it on unmount (#790)', () => {
+    const addListener = vi.spyOn(window, 'addEventListener');
+    const removeListener = vi.spyOn(window, 'removeEventListener');
+    const { rerender, unmount } = renderHook(
+      ({ entries }) => useTransactionFilters(entries),
+      { initialProps: { entries: transactions } },
+    );
+
+    rerender({ entries: [...transactions] });
+    rerender({ entries: transactions.slice(0, 1) });
+
+    const keydownAdds = addListener.mock.calls.filter(([type]) => type === 'keydown');
+    expect(keydownAdds).toHaveLength(1);
+    const registeredHandler = keydownAdds[0]?.[1];
+
+    unmount();
+    expect(removeListener).toHaveBeenCalledWith('keydown', registeredHandler);
+  });
 });
 
 // ── Dark mode fallback (issue #671) ────────────────────────────────────────
