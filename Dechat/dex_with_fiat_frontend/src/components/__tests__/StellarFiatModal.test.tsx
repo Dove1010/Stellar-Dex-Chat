@@ -372,4 +372,20 @@ describe('StellarFiatModal fee simulation debounce', () => {
     // Should only have been called once for the final value
     expect(mockedContract.simulateDeposit).toHaveBeenCalledTimes(1);
   });
+
+  // Regression: #779 — inputs must not carry hardcoded border-gray-600;
+  // they should use theme-input / theme-input-border so the colour follows
+  // the design-system token and is never left on the browser default.
+  it('amount input uses theme border classes and not hard-coded gray border', () => {
+    const { getByRole } = render(
+      React.createElement(StellarFiatModal, {
+        isOpen: true,
+        onClose,
+      }),
+    );
+
+    const input = getByRole('spinbutton') as HTMLInputElement;
+    expect(input.className).not.toMatch(/border-gray-\d+/);
+    expect(input.className).toMatch(/theme-input/);
+  });
 });
