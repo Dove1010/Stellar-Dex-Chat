@@ -315,6 +315,10 @@ export function useTransactionFilters(
     null,
   );
   const [filterSyncError, setFilterSyncError] = useState<Error | null>(null);
+  const shortcutActionsRef = useRef<{
+    clearAllFilters: () => void;
+    cycleFilterCategory: (category: FilterCategory) => void;
+  } | null>(null);
   const searchString = searchParams?.toString() ?? '';
   const lastSearchStringRef = useRef(searchString);
 
@@ -544,6 +548,8 @@ export function useTransactionFilters(
     [filterState, filterStats, toggleFilter, updateUrl],
   );
 
+  shortcutActionsRef.current = { clearAllFilters, cycleFilterCategory };
+
   // Register keyboard shortcuts
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -565,22 +571,22 @@ export function useTransactionFilters(
       switch (e.key.toLowerCase()) {
         case 'x':
           e.preventDefault();
-          clearAllFilters();
+          shortcutActionsRef.current?.clearAllFilters();
           filterTelemetry.shortcut({ key: 'x', action: 'clear_all' });
           break;
         case '1':
           e.preventDefault();
-          cycleFilterCategory('status');
+          shortcutActionsRef.current?.cycleFilterCategory('status');
           filterTelemetry.shortcut({ key: '1', action: 'cycle_status' });
           break;
         case '2':
           e.preventDefault();
-          cycleFilterCategory('asset');
+          shortcutActionsRef.current?.cycleFilterCategory('asset');
           filterTelemetry.shortcut({ key: '2', action: 'cycle_asset' });
           break;
         case '3':
           e.preventDefault();
-          cycleFilterCategory('network');
+          shortcutActionsRef.current?.cycleFilterCategory('network');
           filterTelemetry.shortcut({ key: '3', action: 'cycle_network' });
           break;
       }
@@ -590,7 +596,7 @@ export function useTransactionFilters(
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [clearAllFilters, cycleFilterCategory]);
+  }, []);
 
   return {
     filterState,

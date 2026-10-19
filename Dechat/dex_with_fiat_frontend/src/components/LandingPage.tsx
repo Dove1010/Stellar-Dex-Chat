@@ -122,25 +122,30 @@ export default function LandingPage() {
 
   // Fetch XLM price data every 60 seconds
   useEffect(() => {
+    let isActive = true;
+
     const fetchPrice = async () => {
       try {
-        setPriceLoading(true);
+        if (isActive) setPriceLoading(true);
         const tickerData = await fetchTickerData(['XLM'], 'usd');
-        if (tickerData && tickerData.XLM) {
+        if (isActive && tickerData && tickerData.XLM) {
           setXlmPrice(tickerData.XLM.price);
           setXlmChange(tickerData.XLM.change24h || 0);
         }
       } catch (error) {
         console.error('Failed to fetch XLM price:', error);
       } finally {
-        setPriceLoading(false);
+        if (isActive) setPriceLoading(false);
       }
     };
 
     fetchPrice();
     const interval = setInterval(fetchPrice, 60000); // Refresh every 60 seconds
 
-    return () => clearInterval(interval);
+    return () => {
+      isActive = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const handleGetStarted = () => {
@@ -248,7 +253,7 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] transition-colors duration-200">
+    <div className="min-h-screen w-full overflow-x-hidden bg-[var(--background)] text-[var(--foreground)] transition-colors duration-200">
       {/* Offline Status Banner */}
       <OfflineStatusBanner />
 
@@ -365,12 +370,12 @@ export default function LandingPage() {
               <p className="text-sm text-[var(--color-text-muted)] mb-2">
                 Smart Contract Address
               </p>
-              <div className="flex items-center justify-between">
+              <div className="flex min-w-0 items-center justify-between">
                 <a
                   href={`https://stellar.expert/explorer/testnet/contract/${contractAddress}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-400 font-mono text-sm break-all flex-1 mr-2 hover:underline"
+                  className="min-w-0 text-blue-400 font-mono text-sm break-all flex-1 mr-2 hover:underline"
                 >
                   {contractAddress}
                 </a>

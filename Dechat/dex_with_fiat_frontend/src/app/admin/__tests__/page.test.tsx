@@ -176,6 +176,11 @@ describe('AdminDashboard - Dark Mode Support', () => {
       expect(screen.getByText('Admin Dashboard')).toBeInTheDocument();
     });
 
+    expect(screen.getByRole('main', { name: /admin dashboard/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('combobox', { name: /filter admin audit log by action type/i }),
+    ).toBeInTheDocument();
+
     // Check chart has ARIA label
     const chartContainer = screen.getByRole('img', { name: /transaction volume chart/i });
     expect(chartContainer).toBeInTheDocument();
