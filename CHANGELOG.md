@@ -430,6 +430,7 @@ Repo Avatar
 - **contract:** Include caller and ledger in deposit, withdraw, set_limit, set_operator events
 - **frontend:** Add dynamic theme tokens to NotificationsCenter.tsx
 - **frontend:** AdminGuard dark-mode fallback, chat network toast, Message contrast & banner auto-scroll
+- **contract:** Implement replay protection for heartbeat
 - Skeleton loading state, dark mode telemetry fallback, timelock role check, heartbeat invariant tests
 - Add chat message copy action
 - Expose optimistic beneficiary updates
@@ -909,6 +910,10 @@ Repo Avatar
 - **frontend:** Address issues 1510, 1513, 1515, 1518
 - Address assigned frontend issue slices
 - **contracts:** Reconcile deploy script and documentation with main
+- **frontend:** Set message.error on failed assistant messages for correct border colour
+- Correct get_accrued_fees edge case, add batch_unpause, fix SplitView overflow, add pagination to OfflineStatusBanner
+- **frontend:** Use theme-input-border on BankDetailsModal inputs
+- **frontend:** Use theme-input-border on inputs in StellarFiatModal
 
 ### Changed
 
@@ -1022,7 +1027,7 @@ Repo Avatar
 - **changelog:** Update changelog [skip ci]
 - **changelog:** Update changelog [skip ci]
 - **changelog:** Update changelog [skip ci]
-- **contract:** Improve inline documentation for operator inactivity threshold
+- **frontend:** Add unit test coverage for ThemeContext
 - **dx:** Pin all GitHub Actions to commit SHAs
 - **changelog:** Update changelog [skip ci]
 - **frontend:** Add comprehensive test coverage for issues #1174, #1157, #1156, #1164
@@ -1230,7 +1235,9 @@ Repo Avatar
 - **changelog:** Update changelog [skip ci]
 - **changelog:** Update changelog [skip ci]
 - **changelog:** Update changelog [skip ci]
+- **contract:** Improve inline documentation for operator inactivity threshold
 - **contract:** Improve inline docs and add validation for set_operator_daily_limit
+- **changelog:** Update changelog [skip ci]
 
 ### Deprecated
 
@@ -1792,3 +1799,4 @@ fix(frontend): add minimal security hardening for webhook and transfe…
 - Merge pull request #1563 from Mrwicks00/fix/1455-1458-1478-1479-ci-security-hardening
 
 Fix/1455 1458 1478 1479 ci security hardening
+- Fix security audit dependency
