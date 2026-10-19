@@ -9,6 +9,7 @@ import {
 import { aggregateDailyVolume, DailyMetric } from '@/lib/analytics';
 import { aggregatePayoutMetrics } from '@/lib/adminMetrics';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
+import { useChartColors } from '@/hooks/useChartColors';
 import AuditTable from '@/components/AuditTable';
 import useBridgeStats from '@/hooks/useBridgeStats';
 import AdminGuard from '@/components/AdminGuard';
@@ -61,47 +62,6 @@ function formatParameters(
 
 function escapeCsvValue(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
-}
-
-// Hook to get theme-aware colors for charts using CSS custom properties (#452).
-// All values are read exclusively from CSS variables — no raw hex values.
-function useChartColors() {
-  const [colors, setColors] = useState({
-    primary: 'var(--color-chart-primary)',
-    textMuted: 'var(--color-chart-text)',
-    border: 'var(--color-chart-grid)',
-    surface: 'var(--color-chart-background)',
-    surfaceBorder: 'var(--color-chart-grid)',
-  });
-
-  useEffect(() => {
-    const updateColors = () => {
-      const computedStyle = getComputedStyle(document.documentElement);
-      setColors({
-        primary: computedStyle.getPropertyValue('--color-chart-primary').trim(),
-        textMuted: computedStyle.getPropertyValue('--color-chart-text').trim(),
-        border: computedStyle.getPropertyValue('--color-chart-grid').trim(),
-        surface: computedStyle
-          .getPropertyValue('--color-chart-background')
-          .trim(),
-        surfaceBorder: computedStyle
-          .getPropertyValue('--color-chart-grid')
-          .trim(),
-      });
-    };
-
-    updateColors();
-
-    const observer = new MutationObserver(updateColors);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-theme'],
-    });
-
-    return () => observer.disconnect();
-  }, []);
-
-  return colors;
 }
 
 function AdminErrorFallback() {
