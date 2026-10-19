@@ -914,6 +914,8 @@ Repo Avatar
 - Correct get_accrued_fees edge case, add batch_unpause, fix SplitView overflow, add pagination to OfflineStatusBanner
 - **frontend:** Use theme-input-border on BankDetailsModal inputs
 - **frontend:** Use theme-input-border on inputs in StellarFiatModal
+- **frontend:** Keep themed chart border colour on admin dashboard
+- **frontend:** Resolve UI stability and accessibility issues
 
 ### Changed
 
@@ -1237,6 +1239,7 @@ Repo Avatar
 - **changelog:** Update changelog [skip ci]
 - **contract:** Improve inline documentation for operator inactivity threshold
 - **contract:** Improve inline docs and add validation for set_operator_daily_limit
+- **changelog:** Update changelog [skip ci]
 - **changelog:** Update changelog [skip ci]
 
 ### Deprecated
