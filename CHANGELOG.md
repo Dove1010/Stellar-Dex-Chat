@@ -430,6 +430,10 @@ Repo Avatar
 - **contract:** Include caller and ledger in deposit, withdraw, set_limit, set_operator events
 - **frontend:** Add dynamic theme tokens to NotificationsCenter.tsx
 - **frontend:** AdminGuard dark-mode fallback, chat network toast, Message contrast & banner auto-scroll
+- Skeleton loading state, dark mode telemetry fallback, timelock role check, heartbeat invariant tests
+- Add chat message copy action
+- Expose optimistic beneficiary updates
+- **frontend:** Dark mode fallback in useBridgeStats + error boundary on TransactionAmountDisplay
 
 ### Fixed
 
@@ -904,6 +908,7 @@ Repo Avatar
 - **frontend:** Remove unused CheckCircle import from LandingPage
 - **frontend:** Address issues 1510, 1513, 1515, 1518
 - Address assigned frontend issue slices
+- **contracts:** Reconcile deploy script and documentation with main
 
 ### Changed
 
@@ -1017,6 +1022,7 @@ Repo Avatar
 - **changelog:** Update changelog [skip ci]
 - **changelog:** Update changelog [skip ci]
 - **changelog:** Update changelog [skip ci]
+- **contract:** Improve inline documentation for operator inactivity threshold
 - **dx:** Pin all GitHub Actions to commit SHAs
 - **changelog:** Update changelog [skip ci]
 - **frontend:** Add comprehensive test coverage for issues #1174, #1157, #1156, #1164
@@ -1223,6 +1229,8 @@ Repo Avatar
 - **changelog:** Update changelog [skip ci]
 - **changelog:** Update changelog [skip ci]
 - **changelog:** Update changelog [skip ci]
+- **changelog:** Update changelog [skip ci]
+- **contract:** Improve inline docs and add validation for set_operator_daily_limit
 
 ### Deprecated
 

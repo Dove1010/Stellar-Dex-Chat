@@ -106,7 +106,7 @@ function ThreadPane({
       id={paneId}
       role="region"
       aria-label={`${label} thread comparison pane`}
-      className="flex flex-col flex-1 min-w-0 border-r border-[var(--color-border)] last:border-r-0"
+      className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden border-r border-[var(--color-border)] last:border-r-0"
       data-testid={`split-pane-${label.toLowerCase()}`}
     >
       {/* Pane header */}

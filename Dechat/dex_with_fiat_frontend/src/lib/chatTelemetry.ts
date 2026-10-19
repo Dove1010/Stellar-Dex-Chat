@@ -383,6 +383,55 @@ export function withAccessibleAvatarContrast<
   }
 }
 
+/**
+ * Dark-mode fallback palette for telemetry chip/toast styling.
+ * Consumers that render telemetry UI in dark contexts can import this object
+ * rather than hard-coding colours, ensuring a consistent fallback even when
+ * `prefers-color-scheme: dark` cannot be queried (SSR, tests, etc.).
+ */
+export const darkModeTelemetryDefaults = {
+  chipBackground: '#1F2937',
+  chipText: '#F9FAFB',
+  chipBorderColor: '#374151',
+  intentColors: {
+    info: '#60A5FA',
+    success: '#34D399',
+    warning: '#FBBF24',
+    error: '#F87171',
+  } satisfies Record<TelemetryMotionIntent, string>,
+} as const;
+
+/**
+ * Returns the telemetry chip background and text colours appropriate for the
+ * current colour scheme. Falls back to `darkModeTelemetryDefaults` on the
+ * server or when `matchMedia` is unavailable.
+ */
+export function getTelemetryChipColors(intent: TelemetryMotionIntent = 'info'): {
+  background: string;
+  text: string;
+  accent: string;
+} {
+  const dark = prefersDarkMode();
+  if (dark) {
+    return {
+      background: darkModeTelemetryDefaults.chipBackground,
+      text: darkModeTelemetryDefaults.chipText,
+      accent: darkModeTelemetryDefaults.intentColors[intent],
+    };
+  }
+  return {
+    background: '#FFFFFF',
+    text: '#111827',
+    accent: intent === 'error'
+      ? '#DC2626'
+      : intent === 'warning'
+        ? '#D97706'
+        : intent === 'success'
+          ? '#059669'
+          : '#2563EB',
+  };
+}
+
 export function getTelemetryConsent(): boolean {
   if (typeof window === 'undefined') return false;
   try {

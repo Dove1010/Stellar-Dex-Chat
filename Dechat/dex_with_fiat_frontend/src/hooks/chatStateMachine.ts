@@ -24,6 +24,9 @@ export enum ChatState {
   READY_FOR_TRANSACTION = 'READY_FOR_TRANSACTION',
   TRANSACTION_TRIGGERED = 'TRANSACTION_TRIGGERED',
 
+  // Skeleton / loading placeholder shown while session data is being fetched
+  SKELETON_LOADING = 'SKELETON_LOADING',
+
   // Terminal States
   CANCELLED = 'CANCELLED',
   ERROR = 'ERROR',
@@ -144,7 +147,7 @@ export function createChatStateMachine(): StateMachine<ChatState, ChatEvent, Cha
     states: {
       [ChatState.UNINITIALIZED]: {
         [ChatEvent.INITIALIZE_SESSION]: {
-          target: ChatState.INITIALIZED,
+          target: ChatState.SKELETON_LOADING,
           action: (context) => {
             context.messageCount = 0;
             context.hasUserCancelled = false;
@@ -154,6 +157,16 @@ export function createChatStateMachine(): StateMachine<ChatState, ChatEvent, Cha
             context.errorMessage = null;
           },
         },
+      },
+
+      [ChatState.SKELETON_LOADING]: {
+        [ChatEvent.LOAD_SESSION]: {
+          target: ChatState.INITIALIZED,
+          action: (context) => {
+            context.previousState = ChatState.SKELETON_LOADING;
+          },
+        },
+        [ChatEvent.ENCOUNTER_ERROR]: ChatState.ERROR,
       },
 
       [ChatState.INITIALIZED]: {

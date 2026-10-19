@@ -17,20 +17,15 @@ const WINDOW_LEDGERS: u32 = 17_280; // ~24 hours
 const CIRCUIT_BREAKER_RESET_LEDGERS: u32 = 34_560; // ~48 hours (2 × WINDOW_LEDGERS)
 const WITHDRAWAL_EXPIRY_WINDOW_LEDGERS: u32 = 17_280; // ~24 hours — reserved for future withdrawal expiry feature
 const MIN_TIMELOCK_DELAY: u32 = 34_560; // 48 hours
-/// Default inactivity threshold for operators in ledger units.
+/// Number of ledgers an operator may go without a heartbeat before being
+/// eligible for pruning by `prune_inactive_operators`.
 ///
-/// Operators must send a heartbeat within this window to remain active.
-/// If an operator fails to heartbeat within this threshold, they may be
-/// automatically removed from the operator list to ensure operational security.
-///
-/// Value: 1,555,200 ledgers ≈ 3 months (assuming ~5 second ledger close time)
-///
-/// # Security Implications
-/// - Prevents stale operators from maintaining control
-/// - Ensures active participation from authorized operators
-/// - Allows automatic recovery from compromised operator keys
-/// - Threshold should be balanced between security and operational flexibility
-const DEFAULT_INACTIVITY_THRESHOLD: u32 = 1_555_200; // ~3 months
+/// Stellar closes roughly 1 ledger every ~5–6 seconds (≈17 280 ledgers/day).
+/// At that rate 1 555 200 ledgers ≈ 90 days (3 months).  The value is stored
+/// per-deployment in `DataKey::InactivityThreshold` so it can be changed via
+/// governance; this constant is the on-chain default used when no override has
+/// been written.
+const DEFAULT_INACTIVITY_THRESHOLD: u32 = 1_555_200; // ~3 months (≈17 280 ledgers/day)
 const MIN_UPGRADE_DELAY: u32 = 1_000;
 pub const EVENT_VERSION: u32 = 1;
 pub const ESCROW_STORAGE_VERSION: u32 = 1;
@@ -2262,6 +2257,26 @@ impl FiatBridge {
         Ok(())
     }
 
+    /// Batch variant of [`unpause`](FiatBridge::unpause): unpauses the contract
+    /// `count` times in a single invocation. Each unpause emits its own
+    /// `UnpausedEvent` so off-chain indexers see the full sequence. Returns the
+    /// number of unpauses actually applied (always equal to `count` on success).
+    ///
+    /// # Errors
+    /// * [`Error::Unauthorized`] – If the caller is not the admin.
+    pub fn batch_unpause(env: Env, count: u32) -> Result<u32, Error> {
+        let admin = Self::require_admin(&env)?;
+        for _ in 0..count {
+            env.storage().instance().set(&DataKey::Paused, &false);
+            UnpausedEvent {
+                version: EVENT_VERSION,
+                by: admin.clone(),
+            }
+            .publish(&env);
+        }
+        Ok(count)
+    }
+
     /// Set the anti-sandwich delay in ledgers. Use 0 to disable. Requires admin.
     ///
     /// The delay is enforced by [`execute_withdrawal`](FiatBridge::execute_withdrawal), not by
@@ -3358,10 +3373,51 @@ impl FiatBridge {
             return 0;
         }
 
-        env.storage()
+        // Edge case: clamp to 0 — fees are a non-negative accumulator and a
+        // negative stored value would indicate corruption, not a real debt.
+        let fees: i128 = env
+            .storage()
             .persistent()
             .get(&DataKey::FeeVault(token))
-            .unwrap_or(0)
+            .unwrap_or(0);
+        fees.max(0)
+    }
+
+    /// Admin-only variant of `get_accrued_fees` that enforces a timelock role
+    /// check before returning the vault balance.
+    ///
+    /// Unlike the public `get_accrued_fees`, this entry point requires the
+    /// caller to authenticate as the current admin (#763). This is the
+    /// appropriate path for backend tooling and dashboards that need a
+    /// guaranteed, tamper-evident read — they cannot be spoofed by an
+    /// unauthenticated caller pretending the result came from an admin query.
+    ///
+    /// # Errors
+    /// * [`Error::NotAdmin`] — if `caller` is not the current admin.
+    pub fn get_accrued_fees_authenticated(
+        env: Env,
+        caller: Address,
+        token: Address,
+    ) -> Result<i128, Error> {
+        caller.require_auth();
+        let _admin = Self::require_admin(&env)?;
+        if _admin != caller {
+            return Err(Error::NotAdmin);
+        }
+
+        if !env
+            .storage()
+            .persistent()
+            .has(&DataKey::TokenRegistry(token.clone()))
+        {
+            return Ok(0);
+        }
+
+        Ok(env
+            .storage()
+            .persistent()
+            .get(&DataKey::FeeVault(token))
+            .unwrap_or(0))
     }
 
     /// Withdraws accrued protocol fees for a specific token to the fee recipient.
@@ -5311,8 +5367,22 @@ impl FiatBridge {
     }
 
     /// Set a per-operator daily withdrawal limit.
+    ///
+    /// `limit` is denominated in the token's smallest unit (stroops for XLM).
+    /// It must be strictly positive — zero or negative values are rejected with
+    /// [`Error::ZeroAmount`] because a non-positive cap would either silently
+    /// block all withdrawals (0) or wrap around on comparison (negative).
+    ///
+    /// The limit applies per UTC calendar day and is tracked independently for
+    /// each `operator` address in instance storage under
+    /// [`DataKey::OperatorDailyLimit`].  Calls to `withdraw` accumulate against
+    /// this cap; once reached, further withdrawals by that operator fail with
+    /// [`Error::OperatorDailyLimitExceeded`] until the day rolls over.
     pub fn set_operator_daily_limit(env: Env, operator: Address, limit: i128) -> Result<(), Error> {
         let _admin = Self::require_admin(&env)?;
+        if limit <= 0 {
+            return Err(Error::ZeroAmount);
+        }
         env.storage()
             .instance()
             .set(&DataKey::OperatorDailyLimit(operator), &limit);

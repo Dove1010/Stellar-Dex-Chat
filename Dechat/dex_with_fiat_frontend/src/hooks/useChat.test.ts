@@ -243,6 +243,40 @@ describe('Message Retry UX', () => {
         hook.cleanup();
       }
     });
+
+    it('regression #758: failed assistant message exposes message.error so hasError=true drives the red border', async () => {
+      let rejectAnalysis!: (error: Error) => void;
+      analyzeQueue.push(
+        new Promise<AnalyzeResult>((_, reject) => {
+          rejectAnalysis = reject;
+        }),
+      );
+
+      const hook = await setupHook();
+      try {
+        let sendPromise!: Promise<void>;
+        await act(async () => {
+          sendPromise = hook.api.sendMessage('Trigger error');
+          await Promise.resolve();
+        });
+
+        await act(async () => {
+          rejectAnalysis(new Error('server failed'));
+          await sendPromise;
+        });
+
+        const failedAssistant = hook.api.messages[hook.api.messages.length - 1];
+        expect(failedAssistant?.role).toBe('assistant');
+        // message.error must be set so the Message component derives hasError=true
+        // and applies the red border (border-red-200). Without this, only the user's
+        // optimistic bubble gets the error border.
+        expect(failedAssistant?.error).toBeDefined();
+        expect(failedAssistant?.error?.message).toMatch(/failed/i);
+        expect(failedAssistant?.metadata?.status).toBe('failed');
+      } finally {
+        hook.cleanup();
+      }
+    });
   });
 
   describe('Error State Tracking', () => {

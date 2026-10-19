@@ -57,7 +57,7 @@ export default function Message({ message, onActionClick, onRetry, shouldAnimate
   const retry = useMessageRetry({
     messageId: message.id,
     content: retryContent,
-    isFailed: hasError,
+    isFailed: isFailed,
     onRetry,
   });
   // Attempts already recorded on the message, plus the ones this component has

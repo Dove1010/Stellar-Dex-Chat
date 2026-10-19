@@ -179,6 +179,16 @@ export function useBeneficiaries(options?: { fetchFromApi?: boolean; userId?: st
     [],
   );
 
+  const updateBeneficiary = useCallback(
+    (id: string, updates: Partial<Omit<Beneficiary, 'id' | 'createdAt'>>) => {
+      setBeneficiaries((prev) =>
+        prev.map((beneficiary) =>
+          beneficiary.id === id ? { ...beneficiary, ...updates } : beneficiary,
+        ),
+      );
+    },
+    [],
+  );
   const renameBeneficiary = useCallback((id: string, newName: string) => {
     setBeneficiaries((prev) =>
       prev.map((b) => (b.id === id ? { ...b, name: newName } : b)),
@@ -271,6 +281,7 @@ export function useBeneficiaries(options?: { fetchFromApi?: boolean; userId?: st
     selectedIndex,
     addBeneficiary,
     renameBeneficiary,
+    updateBeneficiary,
     deleteBeneficiary,
     getBeneficiary,
     selectBeneficiary,
