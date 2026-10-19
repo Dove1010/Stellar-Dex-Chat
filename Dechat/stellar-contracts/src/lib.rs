@@ -5558,9 +5558,7 @@ mod test_set_operator_invariants;
 mod test_execute_withdrawal_invariants;
 #[cfg(test)]
 mod test_heartbeat_batch;
-
-#[cfg(test)]
-mod test_heartbeat_invariants;
+mod test_heartbeat_replay;
 #[cfg(test)]
 mod test_request_withdrawal_invariants;
 
